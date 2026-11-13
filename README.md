@@ -29,7 +29,7 @@ All routing variants use the same fusion predictions. The nominal error target i
 
 On wrapped inputs, the gate with neighbors accepted 2,605 of 3,080 requests. It made 123 errors among these, versus 413 errors with automatic routing of every request. The 95% Wilson interval for the accepted error was 3.97%–5.60%. The ablation without neighbors accepted 125 fewer requests and made two more errors among its accepted requests.
 
-With all 10,003 official training rows, the fusion reaches **93.60%** on the original test. Qi et al. report 94.10% with RoBERTa-base on the full test in [Table 2 of their paper](https://aclanthology.org/2021.naacl-industry.38/). Details of the protocol and further published comparisons are in the report.
+With all 10,003 official training rows, the original fusion reaches **93.60%** on the official test. The development-selected follow-up combines 10% TF-IDF with 30% each BGE-small, BGE-base, and E5-base-v2. It reaches **94.51%** (2,911 / 3,080), with 28 additional correct predictions. Published comparisons include 94.10% for [RoBERTa-base](https://aclanthology.org/2021.naacl-industry.38/) and 94.94% for [SPACE-3](https://arxiv.org/abs/2209.06664).
 
 ## Reproduce on CPU
 
@@ -39,20 +39,26 @@ Run from the repository root with Python 3.12.
 python -m pip install -r requirements.txt
 python prepare.py
 python run_experiment.py
+python extended_benchmark.py
 ```
 
 `prepare.py` checks the data hashes, downloads the pinned 34 MB ONNX encoder and its tokenizer, and caches normalized embeddings in `cache/`. The files in `data/` are included, so the first run needs network access for the model only. `python prepare.py --data-only` checks just the dataset. `--threads` controls ONNX CPU threads.
 
 `run_experiment.py` uses a fixed seed (42) and groups normalized duplicate texts within the official training file. It fits the heads on 8,006 examples, selects the fusion weight and fits correctness models on 999 development examples, and selects thresholds on 998 separate calibration examples. The official test stays paired by row index. A separate full-training run supplies the benchmark comparison.
 
+`extended_benchmark.py` adds BGE-base and E5-base-v2 (110 MB of int8 weights each). It selects a classifier on 1,997 grouped development rows and refits the heads on the full training set for an additional official-test comparison. This follow-up was planned after the first official-test evaluation.
+
 | Path | Contents |
 | --- | --- |
 | [data/](data/) | Upstream CSVs, label names and dataset license |
 | [prepare.py](prepare.py) | Verified assets, transformation templates and CPU embedding generation |
 | [run_experiment.py](run_experiment.py) | Models, data splits, threshold selection and evaluation |
+| [extended_benchmark.py](extended_benchmark.py) | Follow-up with larger encoders and model selection |
 | [results/metrics.json](results/metrics.json) | Metrics, thresholds, confidence intervals, tests and per-intent analysis |
 | [results/predictions.csv](results/predictions.csv) | Paired predictions, scores and accept/defer decisions, indexed by zero-based test row |
 | [results/risk_coverage.csv](results/risk_coverage.csv) | Error across coverage levels for the five routing policies |
+| [results/extended_benchmark.json](results/extended_benchmark.json) | Follow-up model selection and official-test comparison |
+| [results/extended_predictions.csv](results/extended_predictions.csv) | Follow-up predictions indexed by official test row |
 | [report.py](report.py) | Report source with tables and graph built from the saved results |
 
 To build the PDF, install `reportlab==4.4.9` and run `python report.py`. Windows Times New Roman and common Linux Liberation/DejaVu serif fonts are supported. Set `--font-dir` if using a custom font location.

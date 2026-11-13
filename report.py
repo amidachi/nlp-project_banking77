@@ -155,6 +155,7 @@ def build(results, output):
     original_gate = original["routing"]["learned_gate"]
     wrapped_gate = wrapped["routing"]["learned_gate"]
     without_neighbors = wrapped["routing"]["score_only_gate"]
+    extended = json.loads((results / "extended_benchmark.json").read_text(encoding="utf-8"))
 
     p("When Should a Banking Chatbot<br/>Defer to a Human?", "title")
     p("Karatorgayeva Dina", "author")
@@ -187,7 +188,8 @@ def build(results, output):
       "93.66% with full training. Qi et al. [2] compare commercial systems and fine-tuned encoders. "
       "RoBERTa-base reaches 94.10% on the full test and 83.8% on a TF-IDF-selected difficult subset. "
       "Song et al. [3] report 94.04% mean accuracy over three SAM continuation seeds and 94.12% for "
-      "the best seed selected after evaluation.")
+      "the best seed selected after evaluation. SPACE-3 [10] uses tree-induced contrastive "
+      "pretraining on dialogue corpora and reaches 94.94% with full training.")
     p("Geifman and El-Yaniv [4] formalize selective classification as a trade-off between acceptance "
       "and errors among accepted predictions. Liang et al. [5] examine confidence margins under "
       "distribution shift. Cheng et al. [6] combine semantic confidence and signed lexical evidence. "
@@ -289,6 +291,7 @@ def build(results, output):
         ["Casanueva et al. [1]", "USE+ConveRT / BERT-large", "93.36% / 93.66%"],
         ["Qi et al. [2]", "RoBERTa-base", "94.10%"],
         ["Song et al. [3]", "SAM continuation, mean of 3 seeds", "94.04%"],
+        ["He et al. [10]", "SPACE-3", "94.94%"],
     ], [124, 215, 141])
     p("Table 3. Full-training accuracy on the official BANKING77 test. Published rows are taken "
       "from the cited studies. The fusion result is below the strongest cited figures.", "caption")
@@ -328,14 +331,38 @@ def build(results, output):
     p("This study uses one grouped split and six synthetic wrappers. Observed calibration error and test "
       "intervals describe this benchmark. Live traffic, novel intents, costs of particular misroutes, "
       "and the quality of human resolution require separate measurements.")
+    story.append(PageBreak())
+    sub("6.4 Follow-up with larger frozen encoders")
+    p("We evaluated two more 768-dimensional int8 encoders on CPU, BGE-base [8] with [CLS] pooling "
+      "and E5-base-v2 [11] with a query prefix and masked mean pooling. We use the same lexical and "
+      "linear heads and train logistic regression (C = 30) on 512 Nyström RBF features (γ = 2) "
+      "computed over the concatenated normalized embeddings. "
+      "We compare the individual models with probability mixtures. Accuracy on 1,997 grouped "
+      "development rows selects the mixture, then all heads are refit on all 10,003 training rows. "
+      "This follow-up was designed after the first official test evaluation.")
+    selected = extended["selected_model"]
+    selected_result = extended["official_test"][selected]
+    change = extended["paired_vs_original"]
+    weights = ", ".join(f"{weight:.0%} {name}" for name, weight in extended["weights"].items() if weight)
+    rows = [["<b>Model</b>", "<b>Official test accuracy</b>"]]
+    for key, label in (("original-fusion", "Original TF-IDF + BGE-small"),
+                       ("bge-base", "BGE-base"), ("e5-base", "E5-base-v2"),
+                       ("dense-average", "Mean of three encoders"), ("rbf", "RBF feature classifier")):
+        rows.append([label, pct(extended["official_test"][key]["accuracy"])])
+    if selected not in ("original-fusion", "bge-base", "e5-base", "dense-average", "rbf"):
+        rows.append(["Development-selected model", pct(selected_result["accuracy"])])
+    table(rows, [330, 150])
+    p(f"Table 5. Follow-up on the official test. Development selects {weights}. "
+      f"Its test accuracy is {pct(selected_result['accuracy'])}, a change of "
+      f"{change['delta'] * 100:+.2f} points from the original fusion "
+      f"(exact McNemar <i>p</i> = {change['p_value']:.3g}).", "caption")
     h("7 Conclusion")
     p(f"Polite additions make intent routing harder even when the banking request is preserved. "
       f"On these paired test inputs, adding neighbor evidence improves the learned gate’s ranking "
       f"and raises accepted coverage by {(wrapped_gate['coverage'] - without_neighbors['coverage']) * 100:.2f} points "
-      f"over the score-only gate. The remaining difference in coverage between original and wrapped "
-      f"inputs quantifies the increase in operator workload under this wording change.")
+      f"over the score-only gate. At the same threshold, the share deferred rises from "
+      f"{pct(1 - original_gate['coverage'])} to {pct(1 - wrapped_gate['coverage'])} after wrapping.")
 
-    story.append(PageBreak())
     h("References")
     references = [
         ("Casanueva, I., Temčinas, T., Gerz, D., Henderson, M., and Vulić, I. (2020). "
@@ -363,6 +390,12 @@ def build(results, output):
          "https://huggingface.co/BAAI/bge-small-en-v1.5", "Model card"),
         ("Ying, C. and Thomas, S. (2022). Label Errors in BANKING77. Insights Workshop, ACL.",
          "https://aclanthology.org/2022.insights-1.19/", "ACL Anthology"),
+        ("He, W., Dai, Y., Yang, M., Sun, J., Huang, F., Si, L., and Li, Y. (2022). SPACE-3: Unified "
+         "Dialog Model Pre-training for Task-Oriented Dialog Understanding and Generation.",
+         "https://arxiv.org/abs/2209.06664", "arXiv:2209.06664"),
+        ("Wang, L. et al. (2022). Text Embeddings by Weakly-Supervised Contrastive Pre-training. "
+         "E5-base-v2 checkpoint.",
+         "https://huggingface.co/intfloat/e5-base-v2", "Model card"),
     ]
     for index, (reference, url, label) in enumerate(references, 1):
         p(f"[{index}] {reference} {link(url, label)}.", "reference")

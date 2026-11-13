@@ -1,0 +1,92 @@
+{
+  "encoders": {
+    "bge-base": {
+      "repo": "Xenova/bge-base-en-v1.5",
+      "revision": "4d6cd88e18e51a5e020c2c305726d76ada9c03cf"
+    },
+    "e5-base": {
+      "repo": "Xenova/e5-base-v2",
+      "revision": "21f8d0e36fdfe76e6a023802dfb293fc6d750ad1"
+    }
+  },
+  "seed": 42,
+  "fit_rows": 8006,
+  "development_rows": 1997,
+  "development_accuracy": {
+    "tfidf": 0.9103655483224837,
+    "bge-base": 0.9344016024036054,
+    "e5-base": 0.9334001001502253,
+    "bge-small": 0.9328993490235353,
+    "rbf": 0.9313970956434652,
+    "dense-average": 0.9364046069103655,
+    "original-fusion": 0.9369053580370555,
+    "mix-word-0.0-rbf-0.00": 0.9364046069103655,
+    "mix-word-0.0-rbf-0.25": 0.9354031046569855,
+    "mix-word-0.0-rbf-0.50": 0.9349023535302955,
+    "mix-word-0.0-rbf-0.75": 0.9344016024036054,
+    "mix-word-0.1-rbf-0.00": 0.9379068602904357,
+    "mix-word-0.1-rbf-0.25": 0.9369053580370555,
+    "mix-word-0.1-rbf-0.50": 0.9359038557836755,
+    "mix-word-0.1-rbf-0.75": 0.9364046069103655,
+    "mix-word-0.2-rbf-0.00": 0.9374061091637457,
+    "mix-word-0.2-rbf-0.25": 0.9374061091637457,
+    "mix-word-0.2-rbf-0.50": 0.9364046069103655,
+    "mix-word-0.2-rbf-0.75": 0.9374061091637457
+  },
+  "selected_model": "mix-word-0.1-rbf-0.00",
+  "weights": {
+    "bge-base": 0.3,
+    "e5-base": 0.3,
+    "bge-small": 0.3,
+    "tfidf": 0.1,
+    "rbf": 0.0
+  },
+  "official_test": {
+    "tfidf": {
+      "accuracy": 0.9113636363636364,
+      "macro_f1": 0.9115279642206505,
+      "correct": 2807
+    },
+    "bge-base": {
+      "accuracy": 0.9383116883116883,
+      "macro_f1": 0.9382125126089222,
+      "correct": 2890
+    },
+    "e5-base": {
+      "accuracy": 0.9366883116883117,
+      "macro_f1": 0.9366625493156381,
+      "correct": 2885
+    },
+    "bge-small": {
+      "accuracy": 0.9308441558441558,
+      "macro_f1": 0.9307727711976604,
+      "correct": 2867
+    },
+    "rbf": {
+      "accuracy": 0.9353896103896104,
+      "macro_f1": 0.9352917387549472,
+      "correct": 2881
+    },
+    "dense-average": {
+      "accuracy": 0.9448051948051948,
+      "macro_f1": 0.9447308721652287,
+      "correct": 2910
+    },
+    "original-fusion": {
+      "accuracy": 0.936038961038961,
+      "macro_f1": 0.935894392061649,
+      "correct": 2883
+    },
+    "mix-word-0.1-rbf-0.00": {
+      "accuracy": 0.9451298701298702,
+      "macro_f1": 0.9450776167040428,
+      "correct": 2911
+    }
+  },
+  "paired_vs_original": {
+    "first_only": 43,
+    "second_only": 15,
+    "delta": 0.00909090909090915,
+    "p_value": 0.000306947015546566
+  }
+}
