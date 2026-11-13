@@ -1,0 +1,5 @@
+/.deps/
+/.venv/
+/cache/
+/tmp/
+__pycache__/
