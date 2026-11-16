@@ -6,14 +6,14 @@ import json
 import os
 from pathlib import Path
 
-from reportlab.graphics.shapes import Drawing, Line, PolyLine, String
+from reportlab.graphics.shapes import Drawing, Line, PolyLine, Rect, String
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Table, TableStyle
 
 ROOT = Path(__file__).resolve().parent
 REPO = "https://github.com/amidachi/nlp-project_banking77"
@@ -22,8 +22,6 @@ TITLE = "When Should a Banking Chatbot Defer to a Human?"
 INK = colors.HexColor("#18212A")
 MUTED = colors.HexColor("#505B65")
 RULE = colors.HexColor("#CDD5DB")
-TEAL = colors.HexColor("#167976")
-NAVY = colors.HexColor("#2E4E83")
 
 
 def register_fonts(custom):
@@ -72,10 +70,39 @@ def styles():
     }
 
 
+def pipeline_figure():
+    drawing = Drawing(480, 112)
+
+    def box(x, y, width, height, heading, details):
+        drawing.add(Rect(x, y, width, height, fillColor=colors.white, strokeColor=MUTED,
+                         strokeWidth=0.8, rx=4, ry=4))
+        for i, line in enumerate([heading, *details]):
+            drawing.add(String(x + width / 2, y + height - 14 - 12 * i, line,
+                               textAnchor="middle", fontName="TextBold" if i == 0 else "Text",
+                               fontSize=9.5, fillColor=INK))
+
+    def arrow(x1, y1, x2, y2):
+        drawing.add(Line(x1, y1, x2, y2, strokeColor=MUTED))
+        end = [x2 - 4, y2 + 2, x2, y2, x2 - 4, y2 - 2] if x1 != x2 else [
+            x2 - 2, y2 - 4, x2, y2, x2 + 2, y2 - 4,
+        ]
+        drawing.add(PolyLine(end, strokeColor=MUTED))
+
+    box(0, 46, 99, 59, "Classifier", ["Banking message", "TF-IDF + BGE", "Fused intent"])
+    box(119, 46, 112, 59, "Three signals", ["Top probability", "Top-two gap", "Neighbor agreement"])
+    box(251, 46, 99, 59, "Logistic gate", ["Standardize features", "Score correctness"])
+    box(370, 46, 109, 59, "Threshold τ", ["Accept fused intent", "or defer to an operator"])
+    box(119, 1, 112, 31, "Fit index", ["8,006 BGE vectors"])
+    for end in (119, 251, 370):
+        arrow(end - 20, 75, end, 75)
+    arrow(175, 32, 175, 46)
+    return drawing
+
+
 def risk_figure(path):
     policies = {"max_prob": "Maximum probability", "score_only_gate": "Gate without neighbors",
                 "learned_gate": "Gate with neighbors"}
-    palette = {"max_prob": MUTED, "score_only_gate": NAVY, "learned_gate": TEAL}
+    dashes = {"max_prob": [1, 2.3], "score_only_gate": [5, 2.5], "learned_gate": None}
     series = {}
     with path.open(encoding="utf-8", newline="") as stream:
         for row in csv.DictReader(stream):
@@ -84,11 +111,12 @@ def risk_figure(path):
                 series.setdefault((row["variant"], row["policy"]), []).append(
                     (coverage, float(row["risk"])),
                 )
-    drawing = Drawing(480, 165)
-    bottom, height, width = 39, 100, 185
+    drawing = Drawing(480, 184)
+    bottom, height, width = 54, 100, 185
     ymax = 0.15
-    for left, variant, title in ((43, "original", "Original test"), (279, "wrapped", "With polite wrappers")):
-        drawing.add(String(left + width / 2, 147, title, fontName="TextBold",
+    drawing.add(String(12, 171, "Selective risk (%)", fontName="Text", fontSize=9, fillColor=INK))
+    for left, variant, title in ((49, "original", "Original test"), (279, "wrapped", "With polite wrappers")):
+        drawing.add(String(left + width / 2, 171, title, fontName="TextBold",
                            fontSize=11, textAnchor="middle", fillColor=INK))
         for tick in (0, 5, 10, 15):
             y = bottom + tick * height / 15
@@ -100,18 +128,19 @@ def risk_figure(path):
             drawing.add(String(x, bottom - 13, f"{tick}%", fontName="Text",
                                fontSize=8.5, textAnchor="middle", fillColor=MUTED))
         drawing.add(Line(left, bottom, left, bottom + height, strokeColor=MUTED, strokeWidth=0.6))
+        drawing.add(String(left + width / 2, 23, "Coverage (%)", fontName="Text", fontSize=9,
+                           textAnchor="middle", fillColor=INK))
         for policy in policies:
             values = series[(variant, policy)]
             points = values[::6] + [values[-1]]
             drawing.add(PolyLine(
                 [coordinate for cx, ry in points for coordinate in
                  (left + width * (cx - 0.5) * 2, bottom + height * min(ry, ymax) / ymax)],
-                strokeColor=palette[policy], strokeWidth=1.45,
-                strokeDashArray=[3, 2] if policy == "score_only_gate" else None,
+                strokeColor=colors.black, strokeWidth=1.35, strokeDashArray=dashes[policy],
             ))
     for x, (key, label) in zip((42, 181, 325), policies.items()):
-        drawing.add(Line(x, 7, x + 18, 7, strokeColor=palette[key], strokeWidth=1.6,
-                         strokeDashArray=[3, 2] if key == "score_only_gate" else None))
+        drawing.add(Line(x, 7, x + 18, 7, strokeColor=colors.black, strokeWidth=1.35,
+                         strokeDashArray=dashes[key]))
         drawing.add(String(x + 23, 4, label, fontName="Text", fontSize=9.2, fillColor=INK))
     return drawing
 
@@ -156,6 +185,9 @@ def build(results, output):
     wrapped_gate = wrapped["routing"]["learned_gate"]
     without_neighbors = wrapped["routing"]["score_only_gate"]
     extended = json.loads((results / "extended_benchmark.json").read_text(encoding="utf-8"))
+    routing = json.loads((results / "routing_analysis.json").read_text(encoding="utf-8"))
+    selected = extended["selected_model"]
+    selected_result = extended["official_test"][selected]
 
     p("When Should a Banking Chatbot<br/>Defer to a Human?", "title")
     p("Karatorgayeva Dina", "author")
@@ -169,59 +201,83 @@ def build(results, output):
       f"A threshold chosen on original calibration data accepts {pct(wrapped_gate['coverage'])} of the "
       f"altered inputs with {pct(wrapped_gate['risk'])} error among accepted predictions. "
       f"The corresponding gate without neighbors accepts {pct(without_neighbors['coverage'])} with "
-      f"{pct(without_neighbors['risk'])} error. Code and results are available at {link(REPO, 'github.com/amidachi/nlp-project_banking77')}.")
+      f"{pct(without_neighbors['risk'])} error. Code and results are available at {link(REPO, REPO)}.")
     h("1 Introduction")
     p("Support systems use intent predictions to route questions to a handler. A card that has already "
       "been ordered and a question about expected delivery time can require different workflows. Every "
       "automatic routing error may add a correction step, and every deferred request uses operator time. "
       "We measure both costs through accepted error and coverage.")
-    p("Given one English message and 77 supported intents, the classifier returns a candidate label. "
-      "A separate rule accepts the candidate or defers the request. We ask whether eight nearby labeled "
-      "examples improve the acceptance score and whether the same threshold transfers to a paired "
-      "test with greetings and closings.")
+    p("We construct a paired BANKING77 test with 3,080 messages supplemented by greetings and closings. "
+      "The experiment asks whether evidence from nearby examples helps a fixed classifier decide "
+      "when to defer. The gate with neighbors achieves the lowest AURC of the five routing methods "
+      "compared on this constructed test.")
     sub("1.1 Team")
-    p("Karatorgayeva Dina defined the project direction and is responsible for the course submission. "
-      "Codex assisted with implementation, experiments, and report preparation.")
+    p("Karatorgayeva Dina approved the research question and is responsible for the course submission. "
+      "OpenAI Codex generated and revised the experiment code, ran the analyses, and drafted the report.")
     h("2 Related Work")
+    sub("2.1 Intent classification")
     p("Casanueva et al. [1] introduced BANKING77. Their frozen USE+ConveRT representations reach 85.19% "
       "accuracy with ten examples per intent and 93.36% with full training. Fine-tuned BERT-large reaches "
       "93.66% with full training. Qi et al. [2] compare commercial systems and fine-tuned encoders. "
       "RoBERTa-base reaches 94.10% on the full test and 83.8% on a TF-IDF-selected difficult subset. "
       "Song et al. [3] report 94.04% mean accuracy over three SAM continuation seeds and 94.12% for "
-      "the best seed selected after evaluation. SPACE-3 [10] uses tree-induced contrastive "
+      "the best seed selected after evaluation. SPACE-3 [4] uses tree-induced contrastive "
       "pretraining on dialogue corpora and reaches 94.94% with full training.")
-    p("Geifman and El-Yaniv [4] formalize selective classification as a trade-off between acceptance "
-      "and errors among accepted predictions. Liang et al. [5] examine confidence margins under "
-      "distribution shift. Cheng et al. [6] combine semantic confidence and signed lexical evidence. "
-      "On BANKING77 they report 89.63% coverage, 2.65% accepted error and AURC 0.01044 across ten runs "
-      "with binomial threshold calibration. Our study uses a different classifier and empirical calibration.")
-    p("Bogachov et al. [7] report roughly 2.6–2.8 F1 points of improvement over default pooling with "
-      "attention pooling under conversational noise. We study threshold transfer under a controlled "
-      "wording change that preserves each message and its original label.")
+    sub("2.2 Selective classification")
+    p("Geifman and El-Yaniv [5] choose a rejection threshold to trade off coverage and errors among "
+      "accepted predictions. Liang et al. [6] study how the top-two logit gap and geometric margins "
+      "rank errors as inputs shift. Cheng et al. [7] fit a correctness model using the semantic margin "
+      "and a lexical model's signed support for the predicted class. They calibrate thresholds using "
+      "simultaneous binomial bounds and evaluate an official BANKING77 test alongside two other corpora.")
 
     story.append(PageBreak())
+    sub("2.3 Neighbor evidence and conversational wording")
+    p("Deep k-Nearest Neighbors [8] uses label agreement among neighbors in several hidden layers to "
+      "measure prediction support. Zhang et al. [9] use a pairwise NLI encoder to choose the best "
+      "matching labeled utterance and detect out-of-scope requests in few-shot intent classification. "
+      "Zhou et al. [10] use in-domain neighbors during contrastive training and then apply a density-based "
+      "detector for out-of-domain intents. Here the encoder stays frozen, the neighbor labels supply "
+      "one input to the confidence model, and all evaluated requests retain an in-scope label.")
+    p("Bogachov et al. [11] compare Llama-3.2-1B-Instruct pooling methods on original and synthetically "
+      "noised BANKING77 and CLINC150 utterances over ten seeds. On noisy BANKING77, attention pooling "
+      "raises mean F1 from 87.67 to 90.31 versus the default head. Our experiment varies the confidence "
+      "signals and measures how an original-text threshold transfers to texts with polite additions.")
     h("3 Model Description")
     sub("3.1 Predicting an intent")
     p("The lexical head uses L2-normalized TF-IDF over word unigrams and bigrams (minimum document "
       "frequency 2) and within-word character 3–5-grams (minimum frequency 3). The concatenated features "
       "feed an L2-regularized multinomial logistic regression with C = 20.")
-    p("The semantic head encodes raw text with the frozen, int8 ONNX port of BGE-small-en-v1.5 [8], "
+    p("The semantic head encodes raw text with the frozen, int8 ONNX port of BGE-small-en-v1.5 [12], "
       "using dynamic padding and up to 128 tokens. The 384-dimensional final [CLS] vector is normalized "
       "to unit length and passed to multinomial logistic regression with C = 100. We combine the "
       "resulting class distributions and predict the largest fused probability.")
     p("<i>p</i>(<i>y</i> | <i>x</i>) = α <i>p</i><sub>lex</sub>(<i>y</i> | <i>x</i>) "
       "+ (1 − α) <i>p</i><sub>sem</sub>(<i>y</i> | <i>x</i>).", "formula")
     sub("3.2 Deciding whether to accept")
-    p("For a fixed fused label, we extract three signals. The first is the largest fused probability. "
-      "The second is its gap over the next highest probability. The third is the fraction of eight "
-      "cosine-nearest fit examples whose labels agree with the fused prediction. We standardize these "
-      "features on development data and train an L2 logistic regression (C = 1) on a binary target "
-      "indicating whether the fused prediction is correct.")
-    p("The resulting score ranks examples for acceptance. On separate calibration data, we sort scores "
-      "in descending order and take the largest prefix whose observed accepted error is at most 5%. "
-      "Complete score ties enter together. The last score in that prefix defines the threshold. "
-      "We then apply the same score model and threshold to both test conditions.")
+    p("Let <i>p</i><sub>(1)</sub> and <i>p</i><sub>(2)</sub> be the two highest fused probabilities. "
+      "<i>N</i><sub>8</sub>(<i>x</i>) contains the eight fit rows with the highest cosine similarity "
+      "in the normalized 384-dimensional BGE-small [CLS] space. The index uses only the 8,006 fit rows.")
+    p("<i>z</i>(<i>x</i>) = "
+      "[<i>p</i><sub>(1)</sub>, <i>p</i><sub>(1)</sub> − <i>p</i><sub>(2)</sub>, "
+      "(1/8) Σ<sub>j in N8(x)</sub> 1[<i>y</i><sub>j</sub> = <i>f</i>(<i>x</i>)]].",
+      "formula")
+    p("Logistic regression (C = 1, L2 penalty) learns whether the fused label is correct on development "
+      "data. It scores <i>z</i><sub>std</sub>(<i>x</i>), obtained by centering and scaling each signal "
+      "using its development mean and standard deviation.")
+    p("<i>s</i>(<i>x</i>) = 1 / [1 + exp(−(<i>b</i> + <i>w</i><sup>T</sup><i>z</i><sub>std</sub>(<i>x</i>)))].",
+      "formula")
+    story.append(pipeline_figure())
+    p("Figure 1. The learned score controls acceptance of the fused intent. The threshold is fitted "
+      "on the independent calibration split.", "caption")
+
+    story.append(PageBreak())
     h("4 Dataset")
+    sub("4.1 Task definition")
+    p("The input <i>x</i> is one English support message with a reference label <i>y</i> among 77 intents. "
+      "The classifier <i>f</i>(<i>x</i>) predicts one label. The router accepts that label when "
+      "<i>s</i>(<i>x</i>) ≥ τ and otherwise defers. The objective is to maximize coverage subject to "
+      "observed calibration risk at most 5%.")
+    sub("4.2 Data and test conditions")
     p(f"PolyAI released 13,083 English banking queries with a single labeled intent per query [1]. "
       f"We use the {link(DATA_URL, 'original CSVs and category list')} under "
       f"{link('https://creativecommons.org/licenses/by/4.0/', 'CC BY 4.0')}. The repository includes "
@@ -244,25 +300,36 @@ def build(results, output):
     p("Case folding and replacement of non-word runs with spaces identify duplicate groups. We find "
       "31 repeated train rows beyond the first occurrence and 25 test rows whose normalized text "
       "appears in the official train set. The main scores retain the official test and we also "
-      "measure accuracy after removing those 25 rows. Ying and Thomas [9] identify potential label noise.")
+      "measure accuracy after removing those 25 rows. Ying and Thomas [13] identify potential label noise.")
 
-    story.append(PageBreak())
     h("5 Experiments")
     sub("5.1 Metrics")
-    p("We report accuracy and macro-F1 for classification. For a threshold accepting a subset A of "
-      "N messages, coverage is |A| / N and selective risk is the number of incorrect accepted "
-      "predictions divided by |A|. For the ranking analysis, AURC is the mean of cumulative selective "
-      "risk across all nonempty prefixes, averaging within score ties. Lower AURC is better. "
-      "We report nominal 95% Wilson intervals for accepted error and exact McNemar tests for paired "
-      "classification comparisons.")
+    p("Let <i>a</i><sub>i</sub>(τ) = 1[<i>s</i>(<i>x</i><sub>i</sub>) ≥ τ] indicate acceptance and "
+      "<i>e</i><sub>i</sub> = 1[<i>f</i>(<i>x</i><sub>i</sub>) ≠ <i>y</i><sub>i</sub>] indicate an error.")
+    p("<i>C</i>(τ) = Σ<sub>i</sub> <i>a</i><sub>i</sub>(τ) / <i>N</i>"
+      "&nbsp;&nbsp;&nbsp;&nbsp; "
+      "<i>R</i>(τ) = Σ<sub>i</sub> <i>a</i><sub>i</sub>(τ)<i>e</i><sub>i</sub>"
+      " / Σ<sub>i</sub> <i>a</i><sub>i</sub>(τ).", "formula")
+    p("Risk is undefined when no rows are accepted. AURC averages cumulative risk over all nonempty "
+      "prefixes sorted by score, with expected errors under random order within ties. Lower is better. "
+      "We report accuracy, macro-F1 and exact paired McNemar tests for classification, and nominal "
+      "95% Wilson intervals for accepted error.")
+
+    story.append(PageBreak())
     sub("5.2 Experiment Setup")
     p("A stratified group split with seed 42 assigns a held-out fold from the original training "
       "file. A second group split divides it into development and calibration. The heads fit on "
-      "8,006 examples. The development set selects the lexical fusion weight from {0, 0.1, ..., 0.5} "
-      f"by accuracy (selected α = {m['fusion_weight']:.1f}) and fits the correctness models. "
-      "The calibration set fixes the routing thresholds. The test variants are evaluated with these "
-      "frozen choices. We fit the classification heads once more on all 10,003 training rows for "
-      "the published accuracy comparison. All runs use CPU. Data and encoder revisions are pinned.")
+      "8,006 examples. The initial grid {0, 0.1, …, 0.5} for α treats TF-IDF as a supplement "
+      "to the semantic head. Development accuracy selects α = 0.2 (94.69%). A sensitivity check "
+      "extends the same development grid to 1.0. The best accuracy at α &gt; 0.5 is 94.19% at 0.6, "
+      "so the selected weight also wins on the full grid.")
+    p("For calibration scores sorted in descending order, let <i>e</i><sub>(i)</sub> be the error "
+      "at rank <i>i</i> and <i>K</i> the nonempty prefix sizes that include all rows tied at the boundary.")
+    p("<i>k</i>* = max { <i>k</i> in <i>K</i> | "
+      "(1/<i>k</i>) Σ<sub>i≤k</sub> <i>e</i><sub>(i)</sub> ≤ 0.05 },"
+      "&nbsp;&nbsp; τ* = <i>s</i><sub>(k*)</sub>.", "formula")
+    p("If the set is empty, the rule defers every request. Thresholds stay fixed across test variants. "
+      "For comparison with prior work, we also refit classification heads on all 10,003 official train rows.")
     sub("5.3 Baselines")
     p("Classification baselines are the most frequent intent, the lexical head and the frozen "
       "semantic head. Routing baselines share the fused class predictions and score them with maximum "
@@ -288,13 +355,15 @@ def build(results, output):
     table([
         ["<b>Source</b>", "<b>Model</b>", "<b>Accuracy</b>"],
         ["This study", "TF-IDF / BGE-small / fusion", "91.14% / 93.08% / 93.60%"],
+        ["This study", "Follow-up ensemble (§6.4)", pct(selected_result["accuracy"])],
         ["Casanueva et al. [1]", "USE+ConveRT / BERT-large", "93.36% / 93.66%"],
         ["Qi et al. [2]", "RoBERTa-base", "94.10%"],
         ["Song et al. [3]", "SAM continuation, mean of 3 seeds", "94.04%"],
-        ["He et al. [10]", "SPACE-3", "94.94%"],
+        ["He et al. [4]", "SPACE-3", "94.94%"],
     ], [124, 215, 141])
     p("Table 3. Full-training accuracy on the official BANKING77 test. Published rows are taken "
-      "from the cited studies. The fusion result is below the strongest cited figures.", "caption")
+      "from the cited studies. The follow-up ensemble exceeds Qi et al. and Song et al. and falls "
+      "0.43 percentage points below SPACE-3.", "caption")
 
     story.append(PageBreak())
     sub("6.2 Selective routing")
@@ -307,18 +376,42 @@ def build(results, output):
         rows.append([label, pct(o["coverage"]), pct(o["risk"]), pct(w["coverage"]),
                      pct(w["risk"]), f"{w['aurc']:.4f}"])
     table(rows, [147, 63, 62, 63, 64, 81])
-    p("Table 4. Fixed thresholds from original calibration data at a nominal 5% target. "
-      "Coverage is the share routed automatically. Risk is the error among accepted requests.", "caption")
+    p("Table 4. Coverage and risk at thresholds chosen on original calibration data with a nominal "
+      "5% target. AURC is computed over the entire ranking.", "caption")
+    agreement = routing["test"]["wrapped"]["margin_vs_gate_without_neighbors"]
+    p("Probability margin and the gate without neighbors each accept 2,480 wrapped requests and make "
+      f"125 errors. Each accepts {agreement['margin_only_accepted']} additional request unique to that policy. "
+      "Their score rankings produce different AURCs.")
+    p(f"On the original BANKING77 test, Cheng et al. [7] report 89.63% coverage, 2.65% accepted error "
+      f"and AURC 0.01044 (Tables II–III). Our gate obtains {pct(original_gate['coverage'])}, "
+      f"{pct(original_gate['risk'])} and {original_gate['aurc']:.5f}, respectively. Their results "
+      "average ten runs of a MiniLM classifier with simultaneous binomial calibration. Ours use "
+      "one fit split, a fused classifier and an empirical calibration constraint. These protocol "
+      "differences limit direct comparison.")
+
     story.append(risk_figure(results / "risk_coverage.csv"))
-    p("Figure 1. Selective risk (vertical) against coverage (horizontal). The curves rank the "
+    p("Figure 2. Selective risk against coverage. The curves rank the "
       "same fused predictions by different scores. Table 4 reports the frozen operating points.", "caption")
-    p(f"On the wrapped test, the gate with neighbors accepts {wrapped_gate['accepted']:,} requests "
-      f"and makes {wrapped_gate['errors']} errors. The ablation accepts {without_neighbors['accepted']:,} "
-      f"and makes {without_neighbors['errors']} errors. On original text, the gate with neighbors "
-      f"accepts {original_gate['accepted']:,} with {original_gate['errors']} errors. Its accepted error "
-      f"interval rises from {pct(original_gate['risk_wilson_95'][0])}–{pct(original_gate['risk_wilson_95'][1])} "
-      f"to {pct(wrapped_gate['risk_wilson_95'][0])}–{pct(wrapped_gate['risk_wilson_95'][1])} "
-      "with wrappers. The latter interval crosses 5%.")
+    p(f"The combined gate accepts {wrapped_gate['accepted']:,} wrapped requests with "
+      f"{wrapped_gate['errors']} errors. Its accepted error has a Wilson 95% interval of "
+      f"{pct(wrapped_gate['risk_wilson_95'][0])} to {pct(wrapped_gate['risk_wilson_95'][1])}, which crosses 5%.")
+    story.append(PageBreak())
+    sub("Paired comparison of the two learned gates")
+    rows = [["<b>Test</b>", "<b>Δ coverage in pp (95% CI)</b>", "<b>Δ AURC × 1,000 (95% CI)</b>"]]
+    for key, name in (("original", "Original"), ("wrapped", "Wrapped")):
+        values = []
+        for metric, scale in (("coverage_delta", 100), ("aurc_delta", 1000)):
+            stat = routing["test"][key][metric]
+            lo, hi = stat["ci95"]
+            values.append(f"{scale * stat['estimate']:+.2f} [{scale * lo:+.2f}, {scale * hi:+.2f}]")
+        rows.append([name, *values])
+    table(rows, [94, 193, 193])
+    p("Table 5. Gate with neighbors minus gate without neighbors. Percentile intervals use 10,000 "
+      "paired resamples of test rows, sharing row indices across both gates within each condition. "
+      "Thresholds and fitted models stay fixed. AURC is recomputed per draw.", "caption")
+    p("Both coverage and AURC intervals exclude zero for this split. The bootstrap measures test-row "
+      "uncertainty conditional on the fitted gates and thresholds. Variation across training splits "
+      "or calibration sets would require repeated fitting.")
     p("At 80% coverage on the wrapped test, error is 3.25% with neighbors and 4.95% without them. "
       "The neighbor-only score obtains lower error at its own operating point (4.20%), with 84 fewer "
       "accepted requests than the combined gate. Its coarse scores yield a higher overall AURC.")
@@ -331,38 +424,24 @@ def build(results, output):
     p("This study uses one grouped split and six synthetic wrappers. Observed calibration error and test "
       "intervals describe this benchmark. Live traffic, novel intents, costs of particular misroutes, "
       "and the quality of human resolution require separate measurements.")
-    story.append(PageBreak())
     sub("6.4 Follow-up with larger frozen encoders")
-    p("We evaluated two more 768-dimensional int8 encoders on CPU, BGE-base [8] with [CLS] pooling "
-      "and E5-base-v2 [11] with a query prefix and masked mean pooling. We use the same lexical and "
-      "linear heads and train logistic regression (C = 30) on 512 Nyström RBF features (γ = 2) "
-      "computed over the concatenated normalized embeddings. "
-      "We compare the individual models with probability mixtures. Accuracy on 1,997 grouped "
-      "development rows selects the mixture, then all heads are refit on all 10,003 training rows. "
-      "This follow-up was designed after the first official test evaluation.")
-    selected = extended["selected_model"]
-    selected_result = extended["official_test"][selected]
+    p("The follow-up adds int8 BGE-base [12] with [CLS] pooling and E5-base-v2 [14] with a query prefix "
+      "and masked mean pooling. It compares the linear heads, probability mixtures and a classifier "
+      "with Nyström RBF features. We select by accuracy on 1,997 grouped development rows and refit on "
+      "the complete training split. This classification experiment follows the initial test evaluation.")
     change = extended["paired_vs_original"]
-    weights = ", ".join(f"{weight:.0%} {name}" for name, weight in extended["weights"].items() if weight)
-    rows = [["<b>Model</b>", "<b>Official test accuracy</b>"]]
-    for key, label in (("original-fusion", "Original TF-IDF + BGE-small"),
-                       ("bge-base", "BGE-base"), ("e5-base", "E5-base-v2"),
-                       ("dense-average", "Mean of three encoders"), ("rbf", "RBF feature classifier")):
-        rows.append([label, pct(extended["official_test"][key]["accuracy"])])
-    if selected not in ("original-fusion", "bge-base", "e5-base", "dense-average", "rbf"):
-        rows.append(["Development-selected model", pct(selected_result["accuracy"])])
-    table(rows, [330, 150])
-    p(f"Table 5. Follow-up on the official test. Development selects {weights}. "
-      f"Its test accuracy is {pct(selected_result['accuracy'])}, a change of "
-      f"{change['delta'] * 100:+.2f} points from the original fusion "
-      f"(exact McNemar <i>p</i> = {change['p_value']:.3g}).", "caption")
+    p(f"The chosen mixture gives TF-IDF 10% and each of the three encoders 30%. "
+      f"Its {pct(selected_result['accuracy'])} test accuracy (Table 3) improves on the original fusion "
+      f"by {change['delta'] * 100:.2f} points "
+      f"(exact McNemar <i>p</i> = {change['p_value']:.3g}).")
     h("7 Conclusion")
-    p(f"Polite additions make intent routing harder even when the banking request is preserved. "
-      f"On these paired test inputs, adding neighbor evidence improves the learned gate’s ranking "
-      f"and raises accepted coverage by {(wrapped_gate['coverage'] - without_neighbors['coverage']) * 100:.2f} points "
-      f"over the score-only gate. At the same threshold, the share deferred rises from "
-      f"{pct(1 - original_gate['coverage'])} to {pct(1 - wrapped_gate['coverage'])} after wrapping.")
+    p(f"On our constructed BANKING77 test, the gate with neighbor agreement has the lowest AURC "
+      f"({wrapped_gate['aurc']:.5f}) of the five evaluated policies. It raises coverage by "
+      f"{(wrapped_gate['coverage'] - without_neighbors['coverage']) * 100:.2f} points over the "
+      f"matched gate without neighbors. Polite additions still increase the share sent to an operator "
+      f"from {pct(1 - original_gate['coverage'])} to {pct(1 - wrapped_gate['coverage'])} at the same threshold.")
 
+    story.append(PageBreak())
     h("References")
     references = [
         ("Casanueva, I., Temčinas, T., Gerz, D., Henderson, M., and Vulić, I. (2020). "
@@ -375,24 +454,33 @@ def build(results, output):
         ("Song, S., Naseem, M. L., and Yuan, Z. (2026). DeepOpen: Decision-Oriented Intent "
          "Classification on BANKING77 and CLINC150.",
          "https://arxiv.org/abs/2610.31104v2", "arXiv:2610.31104v2"),
+        ("He, W., Dai, Y., Yang, M., Sun, J., Huang, F., Si, L., and Li, Y. (2022). SPACE-3: Unified "
+         "Dialog Model Pre-training for Task-Oriented Dialog Understanding and Generation.",
+         "https://arxiv.org/abs/2209.06664", "arXiv:2209.06664"),
         ("Geifman, Y. and El-Yaniv, R. (2017). Selective Classification for Deep Neural Networks. NeurIPS.",
          "https://arxiv.org/abs/1705.08500", "arXiv:1705.08500"),
         ("Liang, H., Peng, L., and Sun, J. (2024). Selective Classification Under Distribution Shifts. "
          "Transactions on Machine Learning Research.",
          "https://arxiv.org/abs/2405.05160", "arXiv:2405.05160"),
         ("Cheng, Y., Yang, Z., and Lin, B. (2026). Signed Lexical Confidence for Risk-Calibrated Intent Routing.",
-         "https://arxiv.org/abs/2610.00262", "arXiv:2610.00262"),
+         "https://arxiv.org/abs/2610.00262v1", "arXiv:2610.00262v1"),
+        ("Papernot, N. and McDaniel, P. (2018). Deep k-Nearest Neighbors: Towards Confident, "
+         "Interpretable and Robust Deep Learning.",
+         "https://arxiv.org/abs/1803.04765", "arXiv:1803.04765"),
+        ("Zhang, J. et al. (2020). Discriminative Nearest Neighbor Few-Shot Intent Detection by "
+         "Transferring Natural Language Inference. EMNLP.",
+         "https://aclanthology.org/2020.emnlp-main.411/", "ACL Anthology"),
+        ("Zhou, Y., Liu, P., and Qiu, X. (2022). KNN-Contrastive Learning for Out-of-Domain Intent "
+         "Classification. ACL.",
+         "https://aclanthology.org/2022.acl-long.352/", "ACL Anthology"),
         ("Bogachov, B., Letov, N., and Zhao, Y. F. (2026). The Hidden States Cookbook: A Large-Scale "
          "Ablation Study for Noise-Robust Conversational Intent Classification in Industry.",
-         "https://arxiv.org/abs/2610.05394", "arXiv:2610.05394"),
-        ("Beijing Academy of Artificial Intelligence. BGE-small-en-v1.5 model card. "
+         "https://arxiv.org/abs/2610.05394v1", "arXiv:2610.05394v1"),
+        ("Beijing Academy of Artificial Intelligence. BGE English embedding model cards. "
          "ONNX export by Xenova.",
          "https://huggingface.co/BAAI/bge-small-en-v1.5", "Model card"),
         ("Ying, C. and Thomas, S. (2022). Label Errors in BANKING77. Insights Workshop, ACL.",
          "https://aclanthology.org/2022.insights-1.19/", "ACL Anthology"),
-        ("He, W., Dai, Y., Yang, M., Sun, J., Huang, F., Si, L., and Li, Y. (2022). SPACE-3: Unified "
-         "Dialog Model Pre-training for Task-Oriented Dialog Understanding and Generation.",
-         "https://arxiv.org/abs/2209.06664", "arXiv:2209.06664"),
         ("Wang, L. et al. (2022). Text Embeddings by Weakly-Supervised Contrastive Pre-training. "
          "E5-base-v2 checkpoint.",
          "https://huggingface.co/intfloat/e5-base-v2", "Model card"),

@@ -137,12 +137,15 @@ def dataset_stats(texts, targets):
 
 
 def choose_weight(lexical, semantic, labels):
-    weights = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
-    scores = [
-        accuracy_score(labels, (weight * lexical + (1 - weight) * semantic).argmax(axis=1))
-        for weight in weights
-    ]
-    return weights[int(np.argmax(scores))], dict(zip(weights, scores))
+    scores = {}
+    for step in range(11):
+        weight = step / 10
+        fused = weight * lexical + (1 - weight) * semantic
+        scores[weight] = accuracy_score(labels, fused.argmax(axis=1))
+    # Keep the semantic head at least as influential in the main experiment.
+    # Larger lexical weights are scored on development for sensitivity analysis.
+    weight = max((value for value in scores if value <= 0.5), key=scores.get)
+    return weight, scores
 
 
 def write_csv(path, rows):

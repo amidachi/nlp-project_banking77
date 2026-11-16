@@ -27,7 +27,9 @@ All routing variants use the same fusion predictions. The nominal error target i
 | Learned gate without neighbors | 93.90% | 3.94% | 80.52% | 5.04% |
 | Learned gate with neighbors | **95.06%** | 3.76% | **84.58%** | 4.72% |
 
-On wrapped inputs, the gate with neighbors accepted 2,605 of 3,080 requests. It made 123 errors among these, versus 413 errors with automatic routing of every request. The 95% Wilson interval for the accepted error was 3.97%–5.60%. The ablation without neighbors accepted 125 fewer requests and made two more errors among its accepted requests.
+On wrapped inputs, the gate with neighbors had the lowest AURC of the five policies (0.02006) and accepted 2,605 of 3,080 requests with 123 errors. The 95% Wilson interval for accepted error was 3.97% to 5.60%. Compared with the learned gate without neighbors, coverage increased by 4.06 percentage points (paired bootstrap 95% CI 2.99 to 5.16) and AURC decreased by 0.00561 (95% CI for the change −0.00697 to −0.00433). The intervals describe test-row variation with the fitted models and thresholds held fixed.
+
+Cheng et al. report 89.63% coverage, 2.65% accepted error and AURC 0.01044 on the original BANKING77 test. Their MiniLM classifier, ten-run averaging and simultaneous binomial calibration limit direct comparison with this project's single-split result. [Cheng et al., Tables II and III](https://arxiv.org/html/2610.00262v1)
 
 With all 10,003 official training rows, the original fusion reaches **93.60%** on the official test. The development-selected follow-up combines 10% TF-IDF with 30% each BGE-small, BGE-base, and E5-base-v2. It reaches **94.51%** (2,911 / 3,080), with 28 additional correct predictions. Published comparisons include 94.10% for [RoBERTa-base](https://aclanthology.org/2021.naacl-industry.38/) and 94.94% for [SPACE-3](https://arxiv.org/abs/2209.06664).
 
@@ -39,6 +41,7 @@ Run from the repository root with Python 3.12.
 python -m pip install -r requirements.txt
 python prepare.py
 python run_experiment.py
+python routing_analysis.py
 python extended_benchmark.py
 ```
 
@@ -53,10 +56,12 @@ python extended_benchmark.py
 | [data/](data/) | Upstream CSVs, label names and dataset license |
 | [prepare.py](prepare.py) | Verified assets, transformation templates and CPU embedding generation |
 | [run_experiment.py](run_experiment.py) | Models, data splits, threshold selection and evaluation |
+| [routing_analysis.py](routing_analysis.py) | Routing count audit and paired test-row bootstrap |
 | [extended_benchmark.py](extended_benchmark.py) | Follow-up with larger encoders and model selection |
 | [results/metrics.json](results/metrics.json) | Metrics, thresholds, confidence intervals, tests and per-intent analysis |
 | [results/predictions.csv](results/predictions.csv) | Paired predictions, scores and accept/defer decisions, indexed by zero-based test row |
 | [results/risk_coverage.csv](results/risk_coverage.csv) | Error across coverage levels for the five routing policies |
+| [results/routing_analysis.json](results/routing_analysis.json) | Accepted counts, policy overlap and confidence intervals |
 | [results/extended_benchmark.json](results/extended_benchmark.json) | Follow-up model selection and official-test comparison |
 | [results/extended_predictions.csv](results/extended_predictions.csv) | Follow-up predictions indexed by official test row |
 | [report.py](report.py) | Report source with tables and graph built from the saved results |
