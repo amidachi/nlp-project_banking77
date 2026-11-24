@@ -1,6 +1,6 @@
 # When should a banking chatbot defer to a human?
 
-NLP Course Final Project · Autumn 2026 · Karatorgayeva Dina
+NLP Course Final Project · Autumn 2026 · Karatorgayeva Dina, Alisheva Anel, Lain Adema
 
 This project studies **selective intent routing**. Given an English banking support request, a classifier proposes one of 77 intents. A separate score determines whether to accept that prediction or defer the request to an operator. The experiment tests whether agreement with nearby training examples improves routing when a customer adds greetings and polite phrases.
 

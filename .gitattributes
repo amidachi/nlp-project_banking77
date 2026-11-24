@@ -1,3 +1,4 @@
 data/*.csv -text
 data/categories.json -text
 data/LICENSE.txt -text
+*.pdf binary

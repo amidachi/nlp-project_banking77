@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parent
 REPO = "https://github.com/amidachi/nlp-project_banking77"
 DATA_URL = "https://github.com/PolyAI-LDN/task-specific-datasets/tree/9d081458ff52e53cf7e848f414e6e9344e4e6696/banking_data"
 TITLE = "When Should a Banking Chatbot Defer to a Human?"
+AUTHORS = ("Karatorgayeva Dina", "Alisheva Anel", "Lain Adema")
 INK = colors.HexColor("#18212A")
 MUTED = colors.HexColor("#505B65")
 RULE = colors.HexColor("#CDD5DB")
@@ -231,7 +232,7 @@ def build(results, output):
     ], key=lambda item: item["aurc"])
 
     p("When Should a Banking Chatbot<br/>Defer to a Human?", "title")
-    p("Karatorgayeva Dina", "author")
+    p(" · ".join(AUTHORS), "author")
     p("NLP Course Final Project · Autumn 2026", "subtitle")
     sub("Abstract")
     p(f"We study selective intent routing when users add polite conversational text to banking "
@@ -257,10 +258,22 @@ def build(results, output):
       "The experiment asks whether evidence from nearby examples helps a fixed classifier decide "
       "when to defer. We extend the BGE experiment with Qwen3-Embedding, EmbeddingGemma and Jina v5 "
       "to test how the result depends on the encoder. The extension asks whether neighbor agreement "
-      "lowers wrapped-test AURC relative to a gate using classifier scores alone for each encoder.")
+      "lowers wrapped-test AURC relative to a gate using classifier scores alone for each encoder. "
+      "The central design is a matched ablation: fused intent predictions stay fixed while the "
+      "learned gate gains labeled-neighbor agreement, isolating its contribution to acceptance decisions.")
     sub("1.1 Team")
-    p("Karatorgayeva Dina approved the research question and is responsible for the course submission. "
-      "OpenAI Codex generated and revised the experiment code, ran the analyses, and drafted the report.")
+    p("Planned responsibilities for final verification and defense are divided into three equally "
+      "important workstreams:")
+    p(f"<b>{AUTHORS[0]} - research design and data.</b> Validate the task definition, dataset source "
+      "and license, duplicate handling, data splits and polite transformations; review the dataset "
+      "description and its assumptions.")
+    p(f"<b>{AUTHORS[1]} - models and reproducibility.</b> Review the classifier, encoder and ensemble "
+      "implementations; reproduce the model comparisons and verify configurations, asset versions "
+      "and reproducibility commands.")
+    p(f"<b>{AUTHORS[2]} - evaluation and reporting.</b> Verify metrics, calibration and paired "
+      "bootstrap analyses; interpret ablations and errors; review the tables, references and final report.")
+    p("All three team members share responsibility for checking the scientific claims and preparing "
+      "the final presentation and defense.")
     h("2 Related Work")
     sub("2.1 Intent classification")
     p("Casanueva et al. [1] introduced BANKING77. Their frozen USE+ConveRT representations reach 85.19% "
@@ -379,6 +392,9 @@ def build(results, output):
 
     h("5 Experiments")
     sub("5.1 Metrics")
+    p("Accuracy is the fraction of correctly predicted intents. Macro-F1 gives each of the 77 "
+      "intents equal weight by averaging its class-specific F1 score. The routing metrics below "
+      "separately measure acceptance frequency and errors among accepted predictions.")
     p("Let <i>a</i><sub>i</sub>(τ) = 1[<i>s</i>(<i>x</i><sub>i</sub>) ≥ τ] indicate acceptance and "
       "<i>e</i><sub>i</sub> = 1[<i>f</i>(<i>x</i><sub>i</sub>) ≠ <i>y</i><sub>i</sub>] indicate an error.")
     p("<i>C</i>(τ) = Σ<sub>i</sub> <i>a</i><sub>i</sub>(τ) / <i>N</i>"
@@ -396,7 +412,9 @@ def build(results, output):
       "8,006 examples. The initial grid {0, 0.1, …, 0.5} for α treats TF-IDF as a supplement "
       "to the semantic head. Development accuracy selects α = 0.2 (94.69%). A sensitivity check "
       "extends the same development grid to 1.0. The best accuracy at α &gt; 0.5 is 94.19% at 0.6, "
-      "so the selected weight also wins on the full grid.")
+      "so the selected weight also wins on the full grid. The main routing study uses one fitted "
+      "run per learned configuration on this split. Bootstrap intervals are conditional on the "
+      "fitted models and thresholds.")
     p("For calibration scores sorted in descending order, let <i>e</i><sub>(i)</sub> be the error "
       "at rank <i>i</i> and <i>K</i> the nonempty prefix sizes that include all rows tied at the boundary.")
     p("<i>k</i>* = max { <i>k</i> in <i>K</i> | "
@@ -709,7 +727,7 @@ def build(results, output):
     output.parent.mkdir(parents=True, exist_ok=True)
     doc = SimpleDocTemplate(str(output), pagesize=letter, topMargin=49, bottomMargin=54,
                             leftMargin=60, rightMargin=60, title=TITLE,
-                            author="Karatorgayeva Dina", subject="NLP Course Final Project")
+                            author=", ".join(AUTHORS), subject="NLP Course Final Project")
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
 
 
