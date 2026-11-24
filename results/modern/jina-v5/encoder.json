@@ -1,0 +1,40 @@
+{
+  "name": "Jina v5 Nano (classification)",
+  "source": "https://huggingface.co/jinaai/jina-embeddings-v5-text-nano-classification",
+  "release": "2026-02-18",
+  "repo": "jinaai/jina-embeddings-v5-text-nano-classification",
+  "revision": "a0129e9b8ea4c54f3dfd250793380d8d69058da3",
+  "files": {
+    "tokenizer.json": "98d4a1d32152d6cedf85b5e88f3b205106dca1fe72aaab34e0ac13c238421069",
+    "onnx/model_quantized.onnx": "ac93a7417c216e5076e37da2b3599f7ef16513934098a477680440c09f735a08",
+    "onnx/model_quantized.onnx_data": "cd7b10e9d82dc3c2f27cfca902e15807653c8c1d3445632dcbb62c6d49514cc0"
+  },
+  "prefix": "Document: ",
+  "dimensions": 768,
+  "pad_id": 128004,
+  "pad_token": "<|pad|>",
+  "output": "last_hidden_state",
+  "batch": 16,
+  "max_tokens": 128,
+  "token_statistics": {
+    "train": {
+      "rows": 10003,
+      "maximum_tokens": 97,
+      "rows_over_token_limit": 0
+    },
+    "original": {
+      "rows": 3080,
+      "maximum_tokens": 81,
+      "rows_over_token_limit": 0
+    },
+    "wrapped": {
+      "rows": 3080,
+      "maximum_tokens": 95,
+      "rows_over_token_limit": 0
+    }
+  },
+  "pooling": "last non-padding token",
+  "l2_normalized": true,
+  "onnx_precision": "int8 quantized",
+  "cache_signature": "c47229b2f2317551"
+}

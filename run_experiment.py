@@ -62,6 +62,14 @@ def knn_support(query, bank, labels, prediction):
     return np.asarray(values)
 
 
+def nearest_neighbor_probabilities(query, bank, labels, classes):
+    predictions = []
+    for start in range(0, len(query), 256):
+        nearest = (query[start:start + 256] @ bank.T).argmax(axis=1)
+        predictions.extend(labels[nearest])
+    return np.eye(classes, dtype=np.float32)[predictions]
+
+
 def model_scores(probabilities, embeddings, bank, bank_labels):
     top = np.sort(probabilities, axis=1)[:, -2:]
     margin = top[:, 1] - top[:, 0]
@@ -156,7 +164,7 @@ def write_csv(path, rows):
         writer.writerows(rows)
 
 
-def run(output):
+def run(output, vectors=None, semantic_key="bge"):
     train, raw_train = load_split("train")
     test, raw_test = load_split("test")
     variants = {"original": test, "wrapped": with_wrappers(test)}
@@ -172,8 +180,18 @@ def run(output):
     assert not (set(groups[fit]) & set(groups[held]) or set(groups[dev]) & set(groups[cal]))
     for split in (fit, dev, cal):
         assert len(np.unique(targets[split])) == len(classes)
-    train_vectors = load_embeddings("train")
-    test_vectors = {key: load_embeddings("test", key == "wrapped") for key in variants}
+    if vectors is None:
+        vectors = {
+            "train": load_embeddings("train"),
+            "original": load_embeddings("test"),
+            "wrapped": load_embeddings("test", wrapped=True),
+        }
+    train_vectors = vectors["train"]
+    test_vectors = {key: vectors[key] for key in variants}
+    for name, texts in (("train", train), *variants.items()):
+        expected_shape = (len(texts), train_vectors.shape[1])
+        if vectors[name].shape != expected_shape or not np.isfinite(vectors[name]).all():
+            raise ValueError(f"Invalid embedding array for {name}")
     train_text = np.asarray(train)
     overlap = np.isin(list(map(group_key, test)), groups)
     train_splits = {"fit": fit, "development": dev, "calibration": cal, "train": np.arange(len(train))}
@@ -250,12 +268,16 @@ def run(output):
         errors = predicted != gold
         decisions[name] = ~errors
         scores = gate_scores(gate_features(probs, test_vectors[name]))
+        nearest = nearest_neighbor_probabilities(
+            test_vectors[name], train_vectors[fit], targets[fit], len(classes),
+        )
         classifiers = {"majority": dummy.predict_proba(test_vectors[name]),
-                       "tfidf": sparse, "bge": dense, "fusion": probs}
+                       "tfidf": sparse, semantic_key: dense, "fusion": probs,
+                       "cosine_1nn": nearest}
         result["test"][name] = {
             "classification": {key: classify(value, gold) for key, value in classifiers.items()},
             "fusion_no_overlap_accuracy": float(np.mean(~errors[~overlap])),
-            "fusion_vs_bge_mcnemar": paired(~errors, dense.argmax(axis=1) == gold),
+            f"fusion_vs_{semantic_key}_mcnemar": paired(~errors, dense.argmax(axis=1) == gold),
             "routing": {},
             "wrapper_accuracy": {
                 str(i + 1): float(np.mean(~errors[i::6])) for i in range(6)
@@ -283,8 +305,9 @@ def run(output):
         for index in range(len(test)):
             row = {
                 "variant": name, "row": index, "gold": raw_test[index],
-                "tfidf": classes[sparse[index].argmax()], "bge": classes[dense[index].argmax()],
+                "tfidf": classes[sparse[index].argmax()], semantic_key: classes[dense[index].argmax()],
                 "fusion": classes[predicted[index]], "in_train": int(overlap[index]),
+                "cosine_1nn": classes[nearest[index].argmax()],
             }
             for key, values in scores.items():
                 row[key] = float(values[index])
@@ -298,11 +321,15 @@ def run(output):
     lexical = lexical_model().fit(train, targets)
     semantic = semantic_model().fit(train_vectors, targets)
     sparse, dense = predict(test, test_vectors["original"])
+    nearest = nearest_neighbor_probabilities(
+        test_vectors["original"], train_vectors, targets, len(classes),
+    )
     result["full_train_original"] = {
         key: classify(value, gold) for key, value in
-        {"tfidf": sparse, "bge": dense, "fusion": mix(sparse, dense)}.items()
+        {"tfidf": sparse, semantic_key: dense, "fusion": mix(sparse, dense),
+         "cosine_1nn": nearest}.items()
     }
-    result["full_train_original"]["fusion_vs_bge_mcnemar"] = paired(
+    result["full_train_original"][f"fusion_vs_{semantic_key}_mcnemar"] = paired(
         mix(sparse, dense).argmax(axis=1) == gold, dense.argmax(axis=1) == gold,
     )
     write_csv(output / "predictions.csv", predictions)

@@ -1,0 +1,40 @@
+{
+  "name": "Qwen3-Embedding-0.6B",
+  "source": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+  "release": "2025-06-05",
+  "repo": "onnx-community/Qwen3-Embedding-0.6B-ONNX",
+  "revision": "c25a394dd583836952667c12f008335071b3f43d",
+  "files": {
+    "tokenizer.json": "def76fb086971c7867b829c23a26261e38d9d74e02139253b38aeb9df8b4b50a",
+    "onnx/model_quantized.onnx": "87cd124e0ef1fd1f223ebc283efccbaeac386d0b08344701c46975d0657b591f"
+  },
+  "prefix": "Instruct: Classify the intent of a banking customer support request.\nQuery: ",
+  "dimensions": 1024,
+  "pad_id": 151643,
+  "pad_token": "<|endoftext|>",
+  "output": "last_hidden_state",
+  "batch": 1,
+  "max_tokens": 128,
+  "token_statistics": {
+    "train": {
+      "rows": 10003,
+      "maximum_tokens": 113,
+      "rows_over_token_limit": 0
+    },
+    "original": {
+      "rows": 3080,
+      "maximum_tokens": 95,
+      "rows_over_token_limit": 0
+    },
+    "wrapped": {
+      "rows": 3080,
+      "maximum_tokens": 109,
+      "rows_over_token_limit": 0
+    }
+  },
+  "pooling": "last non-padding token",
+  "l2_normalized": true,
+  "onnx_precision": "int8 quantized",
+  "cache_signature": "a8114b0e34db387a",
+  "kv_cache_initialization": "empty for every independent batch"
+}

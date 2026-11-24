@@ -1,0 +1,643 @@
+{
+  "seed": 42,
+  "platform": "Windows-10-10.0.19045-SP0",
+  "risk_target": 0.05,
+  "data": {
+    "fit": {
+      "rows": 8006,
+      "classes": 77,
+      "min_per_class": 30,
+      "max_per_class": 156,
+      "median_words": 10.0,
+      "p90_words": 22.0,
+      "duplicate_rows": 29
+    },
+    "development": {
+      "rows": 999,
+      "classes": 77,
+      "min_per_class": 3,
+      "max_per_class": 24,
+      "median_words": 10.0,
+      "p90_words": 21.0,
+      "duplicate_rows": 1
+    },
+    "calibration": {
+      "rows": 998,
+      "classes": 77,
+      "min_per_class": 2,
+      "max_per_class": 23,
+      "median_words": 10.0,
+      "p90_words": 20.0,
+      "duplicate_rows": 1
+    },
+    "train": {
+      "rows": 10003,
+      "classes": 77,
+      "min_per_class": 35,
+      "max_per_class": 187,
+      "median_words": 10.0,
+      "p90_words": 22.0,
+      "duplicate_rows": 31
+    },
+    "original": {
+      "rows": 3080,
+      "classes": 77,
+      "min_per_class": 40,
+      "max_per_class": 40,
+      "median_words": 9.0,
+      "p90_words": 18.0,
+      "duplicate_rows": 4
+    },
+    "wrapped": {
+      "rows": 3080,
+      "classes": 77,
+      "min_per_class": 40,
+      "max_per_class": 40,
+      "median_words": 19.0,
+      "p90_words": 28.0,
+      "duplicate_rows": 2
+    },
+    "test_rows_matching_train": 25
+  },
+  "fusion_weight": 0.3,
+  "development_fusion_accuracy": {
+    "0.0": 0.9769769769769769,
+    "0.1": 0.9769769769769769,
+    "0.2": 0.977977977977978,
+    "0.3": 0.978978978978979,
+    "0.4": 0.9769769769769769,
+    "0.5": 0.970970970970971,
+    "0.6": 0.9629629629629629,
+    "0.7": 0.954954954954955,
+    "0.8": 0.9379379379379379,
+    "0.9": 0.92992992992993,
+    "1.0": 0.9119119119119119
+  },
+  "gate_standardized_weights": {
+    "max_prob": 0.7312809025092619,
+    "prob_margin": 0.6187937889552341,
+    "neighbors": 0.059992482190091324
+  },
+  "thresholds": {
+    "max_prob": 0.25657346305573425,
+    "prob_margin": 0.008560501054903358,
+    "neighbors": 0.0,
+    "score_only_gate": 0.2602877717886553,
+    "learned_gate": 0.22932665458147927
+  },
+  "calibration": {
+    "max_prob": {
+      "accepted": 998,
+      "errors": 42,
+      "coverage": 1.0,
+      "risk": 0.04208416833667335,
+      "risk_wilson_95": [
+        0.03128375130671126,
+        0.05639624840511507
+      ]
+    },
+    "prob_margin": {
+      "accepted": 998,
+      "errors": 42,
+      "coverage": 1.0,
+      "risk": 0.04208416833667335,
+      "risk_wilson_95": [
+        0.03128375130671126,
+        0.05639624840511507
+      ]
+    },
+    "neighbors": {
+      "accepted": 998,
+      "errors": 42,
+      "coverage": 1.0,
+      "risk": 0.04208416833667335,
+      "risk_wilson_95": [
+        0.03128375130671126,
+        0.05639624840511507
+      ]
+    },
+    "score_only_gate": {
+      "accepted": 998,
+      "errors": 42,
+      "coverage": 1.0,
+      "risk": 0.04208416833667335,
+      "risk_wilson_95": [
+        0.03128375130671126,
+        0.05639624840511507
+      ]
+    },
+    "learned_gate": {
+      "accepted": 998,
+      "errors": 42,
+      "coverage": 1.0,
+      "risk": 0.04208416833667335,
+      "risk_wilson_95": [
+        0.03128375130671126,
+        0.05639624840511507
+      ]
+    }
+  },
+  "test": {
+    "original": {
+      "classification": {
+        "majority": {
+          "accuracy": 0.012987012987012988,
+          "macro_f1": 0.000333000333000333,
+          "correct": 40
+        },
+        "tfidf": {
+          "accuracy": 0.9045454545454545,
+          "macro_f1": 0.9046857658936683,
+          "correct": 2786
+        },
+        "embeddinggemma": {
+          "accuracy": 0.9415584415584416,
+          "macro_f1": 0.9415397947413058,
+          "correct": 2900
+        },
+        "fusion": {
+          "accuracy": 0.9461038961038961,
+          "macro_f1": 0.9460749280299455,
+          "correct": 2914
+        },
+        "cosine_1nn": {
+          "accuracy": 0.9412337662337662,
+          "macro_f1": 0.941273460343567,
+          "correct": 2899
+        }
+      },
+      "fusion_no_overlap_accuracy": 0.9456628477905074,
+      "fusion_vs_embeddinggemma_mcnemar": {
+        "first_only": 17,
+        "second_only": 3,
+        "delta": 0.004545454545454519,
+        "p_value": 0.0025768280029296875
+      },
+      "routing": {
+        "max_prob": {
+          "accepted": 3069,
+          "errors": 160,
+          "coverage": 0.9964285714285714,
+          "risk": 0.05213424568263278,
+          "risk_wilson_95": [
+            0.04481439377832667,
+            0.06057388061217154
+          ],
+          "aurc": 0.008126594670997125,
+          "risk_at_80pct": 0.011363636363636364
+        },
+        "prob_margin": {
+          "accepted": 3076,
+          "errors": 164,
+          "coverage": 0.9987012987012988,
+          "risk": 0.053315994798439535,
+          "risk_wilson_95": [
+            0.04591918276592768,
+            0.06182709679346234
+          ],
+          "aurc": 0.007882218639649524,
+          "risk_at_80pct": 0.011363636363636364
+        },
+        "neighbors": {
+          "accepted": 3080,
+          "errors": 166,
+          "coverage": 1.0,
+          "risk": 0.05389610389610389,
+          "risk_wilson_95": [
+            0.04646260350438146,
+            0.0624410036703936
+          ],
+          "aurc": 0.01671357772691477,
+          "risk_at_80pct": 0.0142967542503864
+        },
+        "score_only_gate": {
+          "accepted": 3071,
+          "errors": 162,
+          "coverage": 0.9970779220779221,
+          "risk": 0.05275154672745034,
+          "risk_wilson_95": [
+            0.04538949345360856,
+            0.06123111226257442
+          ],
+          "aurc": 0.007964773832479732,
+          "risk_at_80pct": 0.011363636363636364
+        },
+        "learned_gate": {
+          "accepted": 3072,
+          "errors": 162,
+          "coverage": 0.9974025974025974,
+          "risk": 0.052734375,
+          "risk_wilson_95": [
+            0.045374665356634626,
+            0.06121127647743881
+          ],
+          "aurc": 0.007819028151816966,
+          "risk_at_80pct": 0.011363636363636364,
+          "coverage_by_intent": {
+            "Refund_not_showing_up": 1.0,
+            "activate_my_card": 1.0,
+            "age_limit": 1.0,
+            "apple_pay_or_google_pay": 1.0,
+            "atm_support": 1.0,
+            "automatic_top_up": 1.0,
+            "balance_not_updated_after_bank_transfer": 1.0,
+            "balance_not_updated_after_cheque_or_cash_deposit": 1.0,
+            "beneficiary_not_allowed": 1.0,
+            "cancel_transfer": 0.975,
+            "card_about_to_expire": 1.0,
+            "card_acceptance": 1.0,
+            "card_arrival": 1.0,
+            "card_delivery_estimate": 1.0,
+            "card_linking": 1.0,
+            "card_not_working": 1.0,
+            "card_payment_fee_charged": 1.0,
+            "card_payment_not_recognised": 1.0,
+            "card_payment_wrong_exchange_rate": 1.0,
+            "card_swallowed": 0.975,
+            "cash_withdrawal_charge": 1.0,
+            "cash_withdrawal_not_recognised": 1.0,
+            "change_pin": 1.0,
+            "compromised_card": 1.0,
+            "contactless_not_working": 1.0,
+            "country_support": 1.0,
+            "declined_card_payment": 1.0,
+            "declined_cash_withdrawal": 1.0,
+            "declined_transfer": 1.0,
+            "direct_debit_payment_not_recognised": 0.975,
+            "disposable_card_limits": 1.0,
+            "edit_personal_details": 1.0,
+            "exchange_charge": 1.0,
+            "exchange_rate": 1.0,
+            "exchange_via_app": 1.0,
+            "extra_charge_on_statement": 1.0,
+            "failed_transfer": 0.95,
+            "fiat_currency_support": 1.0,
+            "get_disposable_virtual_card": 1.0,
+            "get_physical_card": 1.0,
+            "getting_spare_card": 1.0,
+            "getting_virtual_card": 1.0,
+            "lost_or_stolen_card": 1.0,
+            "lost_or_stolen_phone": 1.0,
+            "order_physical_card": 1.0,
+            "passcode_forgotten": 1.0,
+            "pending_card_payment": 1.0,
+            "pending_cash_withdrawal": 1.0,
+            "pending_top_up": 1.0,
+            "pending_transfer": 1.0,
+            "pin_blocked": 1.0,
+            "receiving_money": 0.975,
+            "request_refund": 1.0,
+            "reverted_card_payment?": 1.0,
+            "supported_cards_and_currencies": 0.975,
+            "terminate_account": 1.0,
+            "top_up_by_bank_transfer_charge": 1.0,
+            "top_up_by_card_charge": 1.0,
+            "top_up_by_cash_or_cheque": 1.0,
+            "top_up_failed": 1.0,
+            "top_up_limits": 1.0,
+            "top_up_reverted": 0.975,
+            "topping_up_by_card": 1.0,
+            "transaction_charged_twice": 1.0,
+            "transfer_fee_charged": 1.0,
+            "transfer_into_account": 1.0,
+            "transfer_not_received_by_recipient": 1.0,
+            "transfer_timing": 1.0,
+            "unable_to_verify_identity": 1.0,
+            "verify_my_identity": 1.0,
+            "verify_source_of_funds": 1.0,
+            "verify_top_up": 1.0,
+            "virtual_card_not_working": 1.0,
+            "visa_or_mastercard": 1.0,
+            "why_verify_identity": 1.0,
+            "wrong_amount_of_cash_received": 1.0,
+            "wrong_exchange_rate_for_cash_withdrawal": 1.0
+          }
+        }
+      },
+      "wrapper_accuracy": {},
+      "top_confusions": [
+        {
+          "gold": "fiat_currency_support",
+          "predicted": "exchange_via_app",
+          "count": 4
+        },
+        {
+          "gold": "card_delivery_estimate",
+          "predicted": "card_arrival",
+          "count": 3
+        },
+        {
+          "gold": "transfer_not_received_by_recipient",
+          "predicted": "failed_transfer",
+          "count": 3
+        },
+        {
+          "gold": "top_up_reverted",
+          "predicted": "top_up_failed",
+          "count": 3
+        },
+        {
+          "gold": "declined_transfer",
+          "predicted": "declined_card_payment",
+          "count": 3
+        },
+        {
+          "gold": "top_up_failed",
+          "predicted": "top_up_reverted",
+          "count": 3
+        },
+        {
+          "gold": "balance_not_updated_after_bank_transfer",
+          "predicted": "transfer_not_received_by_recipient",
+          "count": 3
+        },
+        {
+          "gold": "balance_not_updated_after_bank_transfer",
+          "predicted": "pending_transfer",
+          "count": 3
+        },
+        {
+          "gold": "exchange_charge",
+          "predicted": "exchange_rate",
+          "count": 3
+        },
+        {
+          "gold": "card_arrival",
+          "predicted": "card_delivery_estimate",
+          "count": 2
+        }
+      ]
+    },
+    "wrapped": {
+      "classification": {
+        "majority": {
+          "accuracy": 0.012987012987012988,
+          "macro_f1": 0.000333000333000333,
+          "correct": 40
+        },
+        "tfidf": {
+          "accuracy": 0.8811688311688312,
+          "macro_f1": 0.8824600009789635,
+          "correct": 2714
+        },
+        "embeddinggemma": {
+          "accuracy": 0.9188311688311688,
+          "macro_f1": 0.9188029796562197,
+          "correct": 2830
+        },
+        "fusion": {
+          "accuracy": 0.9256493506493506,
+          "macro_f1": 0.9260408931647593,
+          "correct": 2851
+        },
+        "cosine_1nn": {
+          "accuracy": 0.9318181818181818,
+          "macro_f1": 0.9317326842694128,
+          "correct": 2870
+        }
+      },
+      "fusion_no_overlap_accuracy": 0.9253682487725041,
+      "fusion_vs_embeddinggemma_mcnemar": {
+        "first_only": 26,
+        "second_only": 5,
+        "delta": 0.006818181818181834,
+        "p_value": 0.00019219517707824707
+      },
+      "routing": {
+        "max_prob": {
+          "accepted": 3039,
+          "errors": 200,
+          "coverage": 0.9866883116883117,
+          "risk": 0.06581112207963145,
+          "risk_wilson_95": [
+            0.05753224111889994,
+            0.0751862932792773
+          ],
+          "aurc": 0.011404257200277684,
+          "risk_at_80pct": 0.013798701298701298
+        },
+        "prob_margin": {
+          "accepted": 3068,
+          "errors": 224,
+          "coverage": 0.9961038961038962,
+          "risk": 0.07301173402868318,
+          "risk_wilson_95": [
+            0.06433033732754159,
+            0.08276106204245057
+          ],
+          "aurc": 0.011155246773606325,
+          "risk_at_80pct": 0.013392857142857142
+        },
+        "neighbors": {
+          "accepted": 3080,
+          "errors": 229,
+          "coverage": 1.0,
+          "risk": 0.07435064935064935,
+          "risk_wilson_95": [
+            0.06560662313943989,
+            0.08415511558409002
+          ],
+          "aurc": 0.01926527660369191,
+          "risk_at_80pct": 0.015789473684210527
+        },
+        "score_only_gate": {
+          "accepted": 3048,
+          "errors": 206,
+          "coverage": 0.9896103896103896,
+          "risk": 0.06758530183727034,
+          "risk_wilson_95": [
+            0.05920667118297963,
+            0.07705252328427994
+          ],
+          "aurc": 0.011226696618025663,
+          "risk_at_80pct": 0.012987012987012988
+        },
+        "learned_gate": {
+          "accepted": 3055,
+          "errors": 210,
+          "coverage": 0.9918831168831169,
+          "risk": 0.06873977086743044,
+          "risk_wilson_95": [
+            0.0602988126271872,
+            0.07826392902732862
+          ],
+          "aurc": 0.010981807421742412,
+          "risk_at_80pct": 0.012581168831168832,
+          "coverage_by_intent": {
+            "Refund_not_showing_up": 1.0,
+            "activate_my_card": 1.0,
+            "age_limit": 1.0,
+            "apple_pay_or_google_pay": 1.0,
+            "atm_support": 1.0,
+            "automatic_top_up": 0.975,
+            "balance_not_updated_after_bank_transfer": 1.0,
+            "balance_not_updated_after_cheque_or_cash_deposit": 1.0,
+            "beneficiary_not_allowed": 1.0,
+            "cancel_transfer": 0.975,
+            "card_about_to_expire": 1.0,
+            "card_acceptance": 1.0,
+            "card_arrival": 1.0,
+            "card_delivery_estimate": 1.0,
+            "card_linking": 1.0,
+            "card_not_working": 1.0,
+            "card_payment_fee_charged": 1.0,
+            "card_payment_not_recognised": 0.975,
+            "card_payment_wrong_exchange_rate": 1.0,
+            "card_swallowed": 0.975,
+            "cash_withdrawal_charge": 1.0,
+            "cash_withdrawal_not_recognised": 1.0,
+            "change_pin": 1.0,
+            "compromised_card": 0.975,
+            "contactless_not_working": 0.975,
+            "country_support": 1.0,
+            "declined_card_payment": 1.0,
+            "declined_cash_withdrawal": 1.0,
+            "declined_transfer": 0.95,
+            "direct_debit_payment_not_recognised": 1.0,
+            "disposable_card_limits": 1.0,
+            "edit_personal_details": 1.0,
+            "exchange_charge": 1.0,
+            "exchange_rate": 1.0,
+            "exchange_via_app": 1.0,
+            "extra_charge_on_statement": 1.0,
+            "failed_transfer": 0.975,
+            "fiat_currency_support": 1.0,
+            "get_disposable_virtual_card": 0.975,
+            "get_physical_card": 1.0,
+            "getting_spare_card": 0.95,
+            "getting_virtual_card": 0.975,
+            "lost_or_stolen_card": 0.975,
+            "lost_or_stolen_phone": 1.0,
+            "order_physical_card": 0.975,
+            "passcode_forgotten": 1.0,
+            "pending_card_payment": 1.0,
+            "pending_cash_withdrawal": 1.0,
+            "pending_top_up": 1.0,
+            "pending_transfer": 1.0,
+            "pin_blocked": 0.975,
+            "receiving_money": 1.0,
+            "request_refund": 1.0,
+            "reverted_card_payment?": 1.0,
+            "supported_cards_and_currencies": 0.975,
+            "terminate_account": 1.0,
+            "top_up_by_bank_transfer_charge": 1.0,
+            "top_up_by_card_charge": 0.975,
+            "top_up_by_cash_or_cheque": 0.975,
+            "top_up_failed": 1.0,
+            "top_up_limits": 1.0,
+            "top_up_reverted": 1.0,
+            "topping_up_by_card": 0.95,
+            "transaction_charged_twice": 1.0,
+            "transfer_fee_charged": 1.0,
+            "transfer_into_account": 0.95,
+            "transfer_not_received_by_recipient": 1.0,
+            "transfer_timing": 1.0,
+            "unable_to_verify_identity": 0.975,
+            "verify_my_identity": 1.0,
+            "verify_source_of_funds": 0.975,
+            "verify_top_up": 1.0,
+            "virtual_card_not_working": 1.0,
+            "visa_or_mastercard": 1.0,
+            "why_verify_identity": 1.0,
+            "wrong_amount_of_cash_received": 1.0,
+            "wrong_exchange_rate_for_cash_withdrawal": 1.0
+          }
+        }
+      },
+      "wrapper_accuracy": {
+        "1": 0.9182879377431906,
+        "2": 0.9396887159533074,
+        "3": 0.9298245614035088,
+        "4": 0.9005847953216374,
+        "5": 0.935672514619883,
+        "6": 0.9298245614035088
+      },
+      "top_confusions": [
+        {
+          "gold": "card_payment_not_recognised",
+          "predicted": "direct_debit_payment_not_recognised",
+          "count": 13
+        },
+        {
+          "gold": "top_up_failed",
+          "predicted": "top_up_reverted",
+          "count": 8
+        },
+        {
+          "gold": "verify_my_identity",
+          "predicted": "unable_to_verify_identity",
+          "count": 6
+        },
+        {
+          "gold": "topping_up_by_card",
+          "predicted": "top_up_reverted",
+          "count": 5
+        },
+        {
+          "gold": "fiat_currency_support",
+          "predicted": "exchange_via_app",
+          "count": 4
+        },
+        {
+          "gold": "transfer_not_received_by_recipient",
+          "predicted": "balance_not_updated_after_bank_transfer",
+          "count": 4
+        },
+        {
+          "gold": "transfer_not_received_by_recipient",
+          "predicted": "pending_transfer",
+          "count": 4
+        },
+        {
+          "gold": "card_arrival",
+          "predicted": "card_delivery_estimate",
+          "count": 3
+        },
+        {
+          "gold": "transfer_not_received_by_recipient",
+          "predicted": "failed_transfer",
+          "count": 3
+        },
+        {
+          "gold": "card_acceptance",
+          "predicted": "country_support",
+          "count": 3
+        }
+      ]
+    }
+  },
+  "original_vs_wrapped_mcnemar": {
+    "first_only": 92,
+    "second_only": 29,
+    "delta": 0.020454545454545503,
+    "p_value": 7.97712197059598e-09
+  },
+  "full_train_original": {
+    "tfidf": {
+      "accuracy": 0.9113636363636364,
+      "macro_f1": 0.9115279642206505,
+      "correct": 2807
+    },
+    "embeddinggemma": {
+      "accuracy": 0.9428571428571428,
+      "macro_f1": 0.9428359013689619,
+      "correct": 2904
+    },
+    "fusion": {
+      "accuracy": 0.9474025974025974,
+      "macro_f1": 0.947392450685425,
+      "correct": 2918
+    },
+    "cosine_1nn": {
+      "accuracy": 0.9428571428571428,
+      "macro_f1": 0.9428344820433816,
+      "correct": 2904
+    },
+    "fusion_vs_embeddinggemma_mcnemar": {
+      "first_only": 19,
+      "second_only": 5,
+      "delta": 0.004545454545454519,
+      "p_value": 0.006610751152038574
+    }
+  }
+}

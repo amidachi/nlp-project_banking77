@@ -1,0 +1,43 @@
+{
+  "model": "Qwen3-Embedding-0.6B",
+  "onnx_revision": "c25a394dd583836952667c12f008335071b3f43d",
+  "precision": "dynamic int8",
+  "test_rows": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+  ],
+  "comparison_row": 0,
+  "threads": 4,
+  "mixed_batch_shape": [
+    16,
+    39
+  ],
+  "comparison_row_tokens": 24,
+  "cosine_single_vs_mixed": 0.9143028855323792,
+  "cosine_single_vs_right_padded": 1.0,
+  "cosine_single_vs_16_repetitions": 1.0,
+  "decision": "Encode each input independently (batch size 1).",
+  "purpose": "Inference correctness check; no labels or test accuracy used to choose this setting.",
+  "control_single_vs_mixed_cosine": {
+    "embeddinggemma": 1.0,
+    "jina-v5": 1.0
+  },
+  "timing_for_16_queries_seconds": {
+    "mixed_batch": 2.087,
+    "independent": 1.049
+  }
+}

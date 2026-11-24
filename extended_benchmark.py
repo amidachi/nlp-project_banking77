@@ -2,6 +2,7 @@
 
 import argparse
 import json
+from itertools import combinations
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -120,14 +121,23 @@ def fit_models(train, target, vectors, train_rows, query_text, query_vectors):
     return scores
 
 
-def run(threads, encode_only):
+def run(threads, encode_only, modern=False):
     train, train_labels = load_split("train")
     test, test_labels = load_split("test")
     splits = {"train": train, "test": test}
     vectors = {name: embeddings(name, splits, threads) for name in ENCODERS}
-    if encode_only:
+    if encode_only and not modern:
         return
     vectors["bge-small"] = {split: load_embeddings(split) for split in splits}
+    modern_info = {}
+    if modern:
+        from modern_benchmark import MODELS, encode
+        for name in MODELS:
+            arrays, info = encode(name, threads)
+            vectors[name] = {"train": arrays["train"], "test": arrays["original"]}
+            modern_info[name] = info
+    if encode_only:
+        return
     train_vectors = {key: value["train"] for key, value in vectors.items()}
     test_vectors = {key: value["test"] for key, value in vectors.items()}
     classes = np.unique(train_labels)
@@ -146,11 +156,29 @@ def run(threads, encode_only):
             key = f"mix-word-{lexical:.1f}-rbf-{rbf:.2f}"
             weights = {name: weight * (1 - lexical - rbf) for name, weight in uniform.items()}
             candidates[key] = {**weights, "tfidf": lexical, "rbf": rbf}
+    if modern:
+        # Enumerate equal-weight semantic subsets and a separate lexical weight.
+        # Selection uses only the grouped development partition.
+        components = tuple(name for name in dev_scores if name != "tfidf")
+        for size in range(1, len(components) + 1):
+            for subset in combinations(components, size):
+                for step in range(6):
+                    lexical = step / 10
+                    key = "+".join(subset) + f"/lexical-{lexical:.1f}"
+                    candidates[key] = {name: (1 - lexical) / size for name in subset}
+                    if lexical:
+                        candidates[key]["tfidf"] = lexical
     development = {
         name: accuracy(mixture(dev_scores, weights), targets[dev])
         for name, weights in candidates.items()
     }
-    chosen = max(development, key=development.get)
+    if modern:
+        chosen = max(development, key=lambda name: (
+            development[name], -sum(value > 0 for value in candidates[name].values()),
+            -candidates[name].get("tfidf", 0),
+        ))
+    else:
+        chosen = max(development, key=development.get)
     print(f"Validation winner: {chosen} ({development[chosen]:.4f})", flush=True)
     full_scores = fit_models(train, targets, train_vectors, np.arange(len(train)), test, test_vectors)
     predictions = {name: mixture(full_scores, weights) for name, weights in candidates.items()
@@ -165,11 +193,27 @@ def run(threads, encode_only):
             predictions["original-fusion"].argmax(axis=1) == gold,
         ),
     }
+    if modern:
+        result.update({
+            "modern_encoders": modern_info, "candidate_count": len(candidates),
+            "selection_rule": "highest development accuracy, then fewer nonzero score components, then lower lexical weight",
+            "selected_nonzero_weights": {name: value for name, value in candidates[chosen].items() if value},
+            "paired_uniform_vs_original": paired(
+                predictions["dense-average"].argmax(axis=1) == gold,
+                predictions["original-fusion"].argmax(axis=1) == gold,
+            ),
+            "paired_uniform_vs_selected": paired(
+                predictions["dense-average"].argmax(axis=1) == gold,
+                predictions[chosen].argmax(axis=1) == gold,
+            ),
+        })
     output = ROOT / "results"
     output.mkdir(exist_ok=True)
-    (output / "extended_benchmark.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    prefix = "modern_ensemble" if modern else "extended_benchmark"
+    (output / f"{prefix}.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     columns = {name: classes[scores.argmax(axis=1)] for name, scores in predictions.items()}
-    write_csv(output / "extended_predictions.csv", (
+    prediction_file = "modern_ensemble_predictions.csv" if modern else "extended_predictions.csv"
+    write_csv(output / prediction_file, (
         {"row": index, "gold": label, **{name: column[index] for name, column in columns.items()}}
         for index, label in enumerate(test_labels)
     ))
@@ -180,11 +224,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--threads", type=int, default=6)
     parser.add_argument("--encode-only", action="store_true")
+    parser.add_argument("--modern", action="store_true", help="Include 2025-2026 encoders and semantic-subset mixtures")
     args = parser.parse_args()
     if args.threads < 1:
         parser.error("--threads must be positive")
     with threadpool_limits(limits=4):
-        run(args.threads, args.encode_only)
+        run(args.threads, args.encode_only, args.modern)
 
 
 if __name__ == "__main__":

@@ -159,6 +159,11 @@
           "accuracy": 0.9357142857142857,
           "macro_f1": 0.9356519623655075,
           "correct": 2882
+        },
+        "cosine_1nn": {
+          "accuracy": 0.9233766233766234,
+          "macro_f1": 0.9234505001067382,
+          "correct": 2844
         }
       },
       "fusion_no_overlap_accuracy": 0.9351882160392798,
@@ -384,6 +389,11 @@
           "accuracy": 0.865909090909091,
           "macro_f1": 0.8659366195076281,
           "correct": 2667
+        },
+        "cosine_1nn": {
+          "accuracy": 0.8159090909090909,
+          "macro_f1": 0.8196295082267123,
+          "correct": 2513
         }
       },
       "fusion_no_overlap_accuracy": 0.8654664484451718,
@@ -617,6 +627,11 @@
       "accuracy": 0.936038961038961,
       "macro_f1": 0.935894392061649,
       "correct": 2883
+    },
+    "cosine_1nn": {
+      "accuracy": 0.9253246753246753,
+      "macro_f1": 0.9254384729420034,
+      "correct": 2850
     },
     "fusion_vs_bge_mcnemar": {
       "first_only": 20,

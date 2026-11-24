@@ -13,7 +13,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Table, TableStyle
+from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Table, TableStyle
 
 ROOT = Path(__file__).resolve().parent
 REPO = "https://github.com/amidachi/nlp-project_banking77"
@@ -88,11 +88,11 @@ def pipeline_figure():
         ]
         drawing.add(PolyLine(end, strokeColor=MUTED))
 
-    box(0, 46, 99, 59, "Classifier", ["Banking message", "TF-IDF + BGE", "Fused intent"])
+    box(0, 46, 99, 59, "Classifier", ["Banking message", "TF-IDF + encoder", "Fused intent"])
     box(119, 46, 112, 59, "Three signals", ["Top probability", "Top-two gap", "Neighbor agreement"])
     box(251, 46, 99, 59, "Logistic gate", ["Standardize features", "Score correctness"])
     box(370, 46, 109, 59, "Threshold τ", ["Accept fused intent", "or defer to an operator"])
-    box(119, 1, 112, 31, "Fit index", ["8,006 BGE vectors"])
+    box(119, 1, 112, 31, "Fit index", ["8,006 fit vectors"])
     for end in (119, 251, 370):
         arrow(end - 20, 75, end, 75)
     arrow(175, 32, 175, 46)
@@ -151,7 +151,17 @@ def build(results, output):
     story = []
 
     def p(value, name="body"):
-        story.append(Paragraph(value, style[name]))
+        paragraph = Paragraph(value, style[name])
+        if name == "caption" and story and isinstance(story[-1], (Table, Drawing)):
+            block = [story.pop(), paragraph]
+        elif name == "formula" and story and isinstance(story[-1], Paragraph):
+            block = [story.pop(), paragraph]
+        else:
+            story.append(paragraph)
+            return
+        while story and isinstance(story[-1], Paragraph) and story[-1].style.name in {"Heading", "Subheading"}:
+            block.insert(0, story.pop())
+        story.append(KeepTogether(block))
 
     def h(value):
         p(value, "heading")
@@ -188,20 +198,56 @@ def build(results, output):
     routing = json.loads((results / "routing_analysis.json").read_text(encoding="utf-8"))
     selected = extended["selected_model"]
     selected_result = extended["official_test"][selected]
+    ensemble = json.loads((results / "modern_ensemble.json").read_text(encoding="utf-8"))
+    ensemble_result = ensemble["official_test"][ensemble["selected_model"]]
+    uniform_result = ensemble["official_test"]["dense-average"]
+    modern = []
+    for key in ("qwen3", "embeddinggemma", "jina-v5"):
+        directory = results / "modern" / key
+        modern.append({
+            "key": key,
+            "encoder": json.loads((directory / "encoder.json").read_text(encoding="utf-8")),
+            "metrics": json.loads((directory / "metrics.json").read_text(encoding="utf-8")),
+            "analysis": json.loads((directory / "routing_analysis.json").read_text(encoding="utf-8")),
+        })
+    comparisons = [("BGE-small", "bge", m)] + [
+        (item["encoder"]["name"], item["key"], item["metrics"]) for item in modern
+    ]
+    best_classifier = max([
+        {"name": name, "method": label,
+         "original": metrics["test"]["original"]["classification"][key]["accuracy"],
+         "wrapped": metrics["test"]["wrapped"]["classification"][key]["accuracy"]}
+        for name, semantic_key, metrics in comparisons
+        for key, label in ((semantic_key, "linear head"), ("cosine_1nn", "cosine 1-NN"),
+                           ("fusion", "probability fusion"))
+    ], key=lambda item: item["wrapped"])
+    policy_labels = {"max_prob": "maximum probability", "prob_margin": "probability margin",
+                     "neighbors": "neighbor agreement", "score_only_gate": "gate without neighbors",
+                     "learned_gate": "gate with neighbors"}
+    best_routing = min([
+        {"name": name, "policy": policy_labels[key], **values}
+        for name, _, metrics in comparisons
+        for key, values in metrics["test"]["wrapped"]["routing"].items()
+    ], key=lambda item: item["aurc"])
 
     p("When Should a Banking Chatbot<br/>Defer to a Human?", "title")
     p("Karatorgayeva Dina", "author")
     p("NLP Course Final Project · Autumn 2026", "subtitle")
     sub("Abstract")
-    p(f"We study whether a banking intent classifier can identify requests that need human review "
-      f"when users add polite conversational text. We evaluate probability fusion and a routing rule that "
-      f"combines classifier scores with agreement among nearby labeled examples. On 3,080 paired BANKING77 "
-      f"requests, adding greetings and closings reduces fusion accuracy from "
-      f"{pct(original['classification']['fusion']['accuracy'])} to {pct(wrapped['classification']['fusion']['accuracy'])}. "
-      f"A threshold chosen on original calibration data accepts {pct(wrapped_gate['coverage'])} of the "
-      f"altered inputs with {pct(wrapped_gate['risk'])} error among accepted predictions. "
-      f"The corresponding gate without neighbors accepts {pct(without_neighbors['coverage'])} with "
-      f"{pct(without_neighbors['risk'])} error. Code and results are available at {link(REPO, REPO)}.")
+    p(f"We study selective intent routing when users add polite conversational text to banking "
+      f"support requests. We compare TF-IDF and four frozen encoders: BGE-small, Qwen3-Embedding, "
+      f"EmbeddingGemma and Jina v5 Nano, with linear, nearest-neighbor and probability-fusion classifiers. "
+      f"On 3,080 paired BANKING77 requests, the highest observed wrapped accuracy is "
+      f"{pct(best_classifier['wrapped'])} from {best_classifier['name']} with {best_classifier['method']} "
+      f"({pct(best_classifier['original'])} on original inputs). Five acceptance scores per encoder "
+      f"are calibrated independently with a nominal 5% error target. The lowest observed wrapped AURC "
+      f"among these 20 combinations is {best_routing['aurc']:.5f} from {best_routing['name']} with "
+      f"the {best_routing['policy']}; its frozen threshold yields {pct(best_routing['coverage'])} coverage "
+      f"and {pct(best_routing['risk'])} accepted error. Paired gate ablations test the contribution of "
+      f"neighbor agreement. A preset uniform average of six encoder heads reaches "
+      f"{pct(uniform_result['accuracy'])} on the full-training official-test protocol; development "
+      f"selection instead chooses a single head reaching {pct(ensemble_result['accuracy'])}. "
+      f"Code and results: {link(REPO, REPO)}.")
     h("1 Introduction")
     p("Support systems use intent predictions to route questions to a handler. A card that has already "
       "been ordered and a question about expected delivery time can require different workflows. Every "
@@ -209,8 +255,9 @@ def build(results, output):
       "We measure both costs through accepted error and coverage.")
     p("We construct a paired BANKING77 test with 3,080 messages supplemented by greetings and closings. "
       "The experiment asks whether evidence from nearby examples helps a fixed classifier decide "
-      "when to defer. The gate with neighbors achieves the lowest AURC of the five routing methods "
-      "compared on this constructed test.")
+      "when to defer. We extend the BGE experiment with Qwen3-Embedding, EmbeddingGemma and Jina v5 "
+      "to test how the result depends on the encoder. The extension asks whether neighbor agreement "
+      "lowers wrapped-test AURC relative to a gate using classifier scores alone for each encoder.")
     sub("1.1 Team")
     p("Karatorgayeva Dina approved the research question and is responsible for the course submission. "
       "OpenAI Codex generated and revised the experiment code, ran the analyses, and drafted the report.")
@@ -230,7 +277,6 @@ def build(results, output):
       "and a lexical model's signed support for the predicted class. They calibrate thresholds using "
       "simultaneous binomial bounds and evaluate an official BANKING77 test alongside two other corpora.")
 
-    story.append(PageBreak())
     sub("2.3 Neighbor evidence and conversational wording")
     p("Deep k-Nearest Neighbors [8] uses label agreement among neighbors in several hidden layers to "
       "measure prediction support. Zhang et al. [9] use a pairwise NLI encoder to choose the best "
@@ -242,12 +288,22 @@ def build(results, output):
       "noised BANKING77 and CLINC150 utterances over ten seeds. On noisy BANKING77, attention pooling "
       "raises mean F1 from 87.67 to 90.31 versus the default head. Our experiment varies the confidence "
       "signals and measures how an original-text threshold transfers to texts with polite additions.")
+    sub("2.4 More recent embedding models")
+    p("Qwen3-Embedding [12], released in June 2025, adapts Qwen3 decoder models through contrastive "
+      "training and supports task instructions. The 0.6B model returns 1,024-dimensional embeddings "
+      "from the final non-padding token. EmbeddingGemma [13], released in September 2025, uses a "
+      "308M-parameter bidirectional model with task-specific prefixes and a 768-dimensional output. "
+      "Jina v5 Nano [14], released in February 2026, distills Qwen3-Embedding-4B into a EuroBERT-based "
+      "239M-parameter model with task adapters. We evaluate the classification adapter merged into "
+      "the backbone, using a 768-dimensional final-token vector. All three encoders use the same "
+      "classification and routing heads as BGE.")
+
     h("3 Model Description")
     sub("3.1 Predicting an intent")
     p("The lexical head uses L2-normalized TF-IDF over word unigrams and bigrams (minimum document "
-      "frequency 2) and within-word character 3–5-grams (minimum frequency 3). The concatenated features "
+      "frequency 2) and within-word character 3-5-grams (minimum frequency 3). The concatenated features "
       "feed an L2-regularized multinomial logistic regression with C = 20.")
-    p("The semantic head encodes raw text with the frozen, int8 ONNX port of BGE-small-en-v1.5 [12], "
+    p("The baseline semantic head encodes raw text with the frozen, int8 ONNX port of BGE-small-en-v1.5 [15], "
       "using dynamic padding and up to 128 tokens. The 384-dimensional final [CLS] vector is normalized "
       "to unit length and passed to multinomial logistic regression with C = 100. We combine the "
       "resulting class distributions and predict the largest fused probability.")
@@ -256,7 +312,8 @@ def build(results, output):
     sub("3.2 Deciding whether to accept")
     p("Let <i>p</i><sub>(1)</sub> and <i>p</i><sub>(2)</sub> be the two highest fused probabilities. "
       "<i>N</i><sub>8</sub>(<i>x</i>) contains the eight fit rows with the highest cosine similarity "
-      "in the normalized 384-dimensional BGE-small [CLS] space. The index uses only the 8,006 fit rows.")
+      "in the normalized space of the current encoder. The BGE baseline uses its 384-dimensional [CLS] "
+      "vectors. Every index uses only the 8,006 fit rows.")
     p("<i>z</i>(<i>x</i>) = "
       "[<i>p</i><sub>(1)</sub>, <i>p</i><sub>(1)</sub> − <i>p</i><sub>(2)</sub>, "
       "(1/8) Σ<sub>j in N8(x)</sub> 1[<i>y</i><sub>j</sub> = <i>f</i>(<i>x</i>)]].",
@@ -269,8 +326,26 @@ def build(results, output):
     story.append(pipeline_figure())
     p("Figure 1. The learned score controls acceptance of the fused intent. The threshold is fitted "
       "on the independent calibration split.", "caption")
+    sub("3.3 Instructions for the newer encoders")
+    p("Qwen3 receives “Instruct: Classify the intent of a banking customer support request.” followed "
+      "by a newline and “Query: ” before the message. EmbeddingGemma receives “task: classification | "
+      "query: ” and Jina receives “Document: ”. We use their pinned int8 ONNX exports, normalize each output vector, and cap the "
+      "complete input at 128 tokens. Heads use C = 100 and each encoder supplies its own neighbor index. "
+      "The manifests record model revisions, SHA-256 hashes and observed truncation counts. "
+      "No original or wrapped test request exceeds the 128-token limit of any of the three newer "
+      "encoders. Qwen's dynamic-int8 export is encoded one request at a time: a controlled probe found "
+      "batch-composition dependence (cosine 0.914 for the same query alone versus in a mixed batch). "
+      "EmbeddingGemma and Jina use batches of 16 and matched their single-query vectors in this probe. "
+      "The inference audit is saved with the results. Model sizes differ and encoders remain frozen.")
+    sub("3.4 Nearest-neighbor and nonlinear comparators")
+    p("Cosine 1-NN assigns the label of the most similar fit vector without learning a linear head. "
+      "The nonlinear comparator concatenates M normalized encoder vectors, scales each block by "
+      "1/√M, and approximates the following kernel with 512 Nyström landmarks (seed 42).")
+    p("<i>K</i>(<i>u</i>, <i>v</i>) = exp(−2 ||<i>u</i> − <i>v</i>||<sup>2</sup>).", "formula")
+    p("A logistic classifier with C = 30 operates on the resulting features. The ensemble experiment "
+      "combines class probabilities from the linear heads, this nonlinear head and TF-IDF. "
+      "Its weights are chosen on grouped development data (§6.6).")
 
-    story.append(PageBreak())
     h("4 Dataset")
     sub("4.1 Task definition")
     p("The input <i>x</i> is one English support message with a reference label <i>y</i> among 77 intents. "
@@ -289,7 +364,7 @@ def build(results, output):
                        ("wrapped", "Test with wrappers")):
         s = m["data"][key]
         rows.append([label, f"{s['rows']:,}", s["classes"],
-                     f"{s['min_per_class']}–{s['max_per_class']}", int(s["median_words"]), int(s["p90_words"])])
+                     f"{s['min_per_class']}-{s['max_per_class']}", int(s["median_words"]), int(s["p90_words"])])
     table(rows, [120, 50, 48, 91, 81, 90])
     p("Table 1. Dataset statistics. Fit, development and calibration partition the official train split. "
       "The two test conditions share the same labels and test row IDs.", "caption")
@@ -300,7 +375,7 @@ def build(results, output):
     p("Case folding and replacement of non-word runs with spaces identify duplicate groups. We find "
       "31 repeated train rows beyond the first occurrence and 25 test rows whose normalized text "
       "appears in the official train set. The main scores retain the official test and we also "
-      "measure accuracy after removing those 25 rows. Ying and Thomas [13] identify potential label noise.")
+      "measure accuracy after removing those 25 rows. Ying and Thomas [16] identify potential label noise.")
 
     h("5 Experiments")
     sub("5.1 Metrics")
@@ -315,7 +390,6 @@ def build(results, output):
       "We report accuracy, macro-F1 and exact paired McNemar tests for classification, and nominal "
       "95% Wilson intervals for accepted error.")
 
-    story.append(PageBreak())
     sub("5.2 Experiment Setup")
     p("A stratified group split with seed 42 assigns a held-out fold from the original training "
       "file. A second group split divides it into development and calibration. The heads fit on "
@@ -330,9 +404,13 @@ def build(results, output):
       "&nbsp;&nbsp; τ* = <i>s</i><sub>(k*)</sub>.", "formula")
     p("If the set is empty, the rule defers every request. Thresholds stay fixed across test variants. "
       "For comparison with prior work, we also refit classification heads on all 10,003 official train rows.")
+    p("The three newer encoders use these same fit, development and calibration rows. Their fusion "
+      "weights and acceptance thresholds are fitted independently on the corresponding development "
+      "and calibration representations. This extension was added after feedback on the original study.")
     sub("5.3 Baselines")
-    p("Classification baselines are the most frequent intent, the lexical head and the frozen "
-      "semantic head. Routing baselines share the fused class predictions and score them with maximum "
+    p("Classification baselines are the most frequent intent, TF-IDF, a linear head over frozen "
+      "embeddings, and cosine 1-nearest-neighbor classification using the same fit index. The fused "
+      "classifier combines lexical and semantic probabilities. Routing baselines score its predictions with maximum "
       "probability, the top-two probability gap, neighbor agreement alone, or a learned score using "
       "only the two classifier-derived signals. The last comparator isolates the contribution of neighbors.")
     h("6 Results")
@@ -340,7 +418,8 @@ def build(results, output):
     rows = [["<b>Classifier</b>", "<b>Original accuracy</b>", "<b>Original macro-F1</b>",
              "<b>Wrapped accuracy</b>", "<b>Wrapped macro-F1</b>"]]
     names = [("majority", "Most frequent intent"), ("tfidf", "TF-IDF"),
-             ("bge", "BGE-small"), ("fusion", "Probability fusion")]
+             ("bge", "BGE-small + linear head"), ("cosine_1nn", "BGE-small cosine 1-NN"),
+             ("fusion", "Probability fusion")]
     for key, label in names:
         rows.append([label] + [pct(group["classification"][key][metric])
                                 for group in (original, wrapped) for metric in ("accuracy", "macro_f1")])
@@ -351,22 +430,33 @@ def build(results, output):
       f"Removing the 25 train-matching test rows changes fusion accuracy to "
       f"{pct(original['fusion_no_overlap_accuracy'])}. The wrapped test loses 215 net correct "
       f"fusion predictions (254 correct only before wrapping and 39 only after, <i>p</i> &lt; 0.001). "
-      f"TF-IDF has the highest accuracy after wrapping.")
-    table([
+      f"TF-IDF has the highest wrapped accuracy among these BGE baseline classifiers.")
+    comparison_rows = [
         ["<b>Source</b>", "<b>Model</b>", "<b>Accuracy</b>"],
         ["This study", "TF-IDF / BGE-small / fusion", "91.14% / 93.08% / 93.60%"],
         ["This study", "Follow-up ensemble (§6.4)", pct(selected_result["accuracy"])],
+        ["This study", "Development-selected candidate (§6.6)", pct(ensemble_result["accuracy"])],
+        ["This study", "Preset uniform six-encoder average (§6.6)", pct(uniform_result["accuracy"])],
+        ["This study", "RBF over six encoders (§6.6)", pct(ensemble["official_test"]["rbf"]["accuracy"])],
+    ]
+    for item in modern:
+        full = item["metrics"]["full_train_original"]
+        comparison_rows.append([
+            "This study (§6.5)", item["encoder"]["name"] + " (linear / 1-NN / fusion)",
+            " / ".join(pct(full[key]["accuracy"]) for key in (item["key"], "cosine_1nn", "fusion")),
+        ])
+    comparison_rows.extend([
         ["Casanueva et al. [1]", "USE+ConveRT / BERT-large", "93.36% / 93.66%"],
         ["Qi et al. [2]", "RoBERTa-base", "94.10%"],
         ["Song et al. [3]", "SAM continuation, mean of 3 seeds", "94.04%"],
         ["He et al. [4]", "SPACE-3", "94.94%"],
-    ], [124, 215, 141])
+    ])
+    table(comparison_rows, [124, 215, 141])
     p("Table 3. Full-training accuracy on the official BANKING77 test. Published rows are taken "
-      "from the cited studies. The follow-up ensemble exceeds Qi et al. and Song et al. and falls "
-      "0.43 percentage points below SPACE-3.", "caption")
+      "from the cited studies. Modern encoder rows show linear-head / cosine 1-NN / fusion accuracy. "
+      "Training regimes and pretraining corpora differ across studies.", "caption")
 
-    story.append(PageBreak())
-    sub("6.2 Selective routing")
+    sub("6.2 Selective routing with BGE-small")
     rows = [["<b>Routing policy</b>", "<b>Orig. cov.</b>", "<b>Orig. risk</b>",
              "<b>Wrap. cov.</b>", "<b>Wrap. risk</b>", "<b>Wrap. AURC</b>"]]
     for key, label in (("max_prob", "Maximum probability"), ("prob_margin", "Probability margin"),
@@ -376,26 +466,25 @@ def build(results, output):
         rows.append([label, pct(o["coverage"]), pct(o["risk"]), pct(w["coverage"]),
                      pct(w["risk"]), f"{w['aurc']:.4f}"])
     table(rows, [147, 63, 62, 63, 64, 81])
-    p("Table 4. Coverage and risk at thresholds chosen on original calibration data with a nominal "
+    p("Table 4. BGE-small fusion: coverage and risk at thresholds chosen on original calibration data with a nominal "
       "5% target. AURC is computed over the entire ranking.", "caption")
     agreement = routing["test"]["wrapped"]["margin_vs_gate_without_neighbors"]
     p("Probability margin and the gate without neighbors each accept 2,480 wrapped requests and make "
       f"125 errors. Each accepts {agreement['margin_only_accepted']} additional request unique to that policy. "
       "Their score rankings produce different AURCs.")
     p(f"On the original BANKING77 test, Cheng et al. [7] report 89.63% coverage, 2.65% accepted error "
-      f"and AURC 0.01044 (Tables II–III). Our gate obtains {pct(original_gate['coverage'])}, "
+      f"and AURC 0.01044 (Tables II-III). Our gate obtains {pct(original_gate['coverage'])}, "
       f"{pct(original_gate['risk'])} and {original_gate['aurc']:.5f}, respectively. Their results "
       "average ten runs of a MiniLM classifier with simultaneous binomial calibration. Ours use "
       "one fit split, a fused classifier and an empirical calibration constraint. These protocol "
       "differences limit direct comparison.")
 
     story.append(risk_figure(results / "risk_coverage.csv"))
-    p("Figure 2. Selective risk against coverage. The curves rank the "
+    p("Figure 2. BGE-small selective risk against coverage. The curves rank the "
       "same fused predictions by different scores. Table 4 reports the frozen operating points.", "caption")
     p(f"The combined gate accepts {wrapped_gate['accepted']:,} wrapped requests with "
       f"{wrapped_gate['errors']} errors. Its accepted error has a Wilson 95% interval of "
       f"{pct(wrapped_gate['risk_wilson_95'][0])} to {pct(wrapped_gate['risk_wilson_95'][1])}, which crosses 5%.")
-    story.append(PageBreak())
     sub("Paired comparison of the two learned gates")
     rows = [["<b>Test</b>", "<b>Δ coverage in pp (95% CI)</b>", "<b>Δ AURC × 1,000 (95% CI)</b>"]]
     for key, name in (("original", "Original"), ("wrapped", "Wrapped")):
@@ -406,7 +495,7 @@ def build(results, output):
             values.append(f"{scale * stat['estimate']:+.2f} [{scale * lo:+.2f}, {scale * hi:+.2f}]")
         rows.append([name, *values])
     table(rows, [94, 193, 193])
-    p("Table 5. Gate with neighbors minus gate without neighbors. Percentile intervals use 10,000 "
+    p("Table 5. BGE gate with neighbors minus gate without neighbors. Percentile intervals use 10,000 "
       "paired resamples of test rows, sharing row indices across both gates within each condition. "
       "Thresholds and fitted models stay fixed. AURC is recomputed per draw.", "caption")
     p("Both coverage and AURC intervals exclude zero for this split. The bootstrap measures test-row "
@@ -416,7 +505,7 @@ def build(results, output):
       "The neighbor-only score obtains lower error at its own operating point (4.20%), with 84 fewer "
       "accepted requests than the combined gate. Its coarse scores yield a higher overall AURC.")
     sub("6.3 Error analysis and limitations")
-    p("The largest wrapped confusion is unrecognized card payment classified as unrecognized direct debit "
+    p("The BGE baseline's largest wrapped confusion is unrecognized card payment classified as unrecognized direct debit "
       "(14 cases). One original request, “My card has not arrived yet,” is correctly classified as "
       "card arrival. After wrapping, the model predicts a delivery estimate and the gate defers it. "
       "Coverage for suspected card compromise falls from 36/40 to 12/40. Aggregate coverage can mask "
@@ -425,23 +514,136 @@ def build(results, output):
       "intervals describe this benchmark. Live traffic, novel intents, costs of particular misroutes, "
       "and the quality of human resolution require separate measurements.")
     sub("6.4 Follow-up with larger frozen encoders")
-    p("The follow-up adds int8 BGE-base [12] with [CLS] pooling and E5-base-v2 [14] with a query prefix "
+    p("The follow-up adds int8 BGE-base [15] with [CLS] pooling and E5-base-v2 [17] with a query prefix "
       "and masked mean pooling. It compares the linear heads, probability mixtures and a classifier "
-      "with Nyström RBF features. We select by accuracy on 1,997 grouped development rows and refit on "
+      "with Nyström RBF features (512 landmarks, γ = 2, seed 42; logistic C = 30). We select by "
+      "accuracy on 1,997 grouped development rows and refit on "
       "the complete training split. This classification experiment follows the initial test evaluation.")
     change = extended["paired_vs_original"]
     p(f"The chosen mixture gives TF-IDF 10% and each of the three encoders 30%. "
       f"Its {pct(selected_result['accuracy'])} test accuracy (Table 3) improves on the original fusion "
       f"by {change['delta'] * 100:.2f} points "
       f"(exact McNemar <i>p</i> = {change['p_value']:.3g}).")
+    sub("6.5 Comparison with 2025-2026 encoders")
+    p("Qwen3-Embedding-0.6B, EmbeddingGemma-300M and Jina v5 Nano use the same 8,006 fit rows, 999 development "
+      "rows, 998 calibration rows and 3,080 paired test requests as the BGE routing experiment. "
+      "For each encoder we fit the linear classifier, select its fusion weight and fit both gates "
+      "independently using these same partitions.")
+    rows = [["<b>Frozen encoder / classifier</b>", "<b>Original accuracy</b>", "<b>Wrapped accuracy</b>"]]
+    for name, semantic_key, metrics in comparisons:
+        for key, classifier in ((semantic_key, "linear head"), ("cosine_1nn", "cosine 1-NN")):
+            rows.append([
+                f"{name} / {classifier}",
+                pct(metrics["test"]["original"]["classification"][key]["accuracy"]),
+                pct(metrics["test"]["wrapped"]["classification"][key]["accuracy"]),
+            ])
+    table(rows, [268, 106, 106])
+    p("Table 6. Frozen representations evaluated with a learned linear head and a cosine nearest-neighbor "
+      "classifier. All rows use the same fit partition.", "caption")
+    gemma = next(item["metrics"] for item in modern if item["key"] == "embeddinggemma")
+    p(f"On wrapped requests, EmbeddingGemma's cosine 1-NN reaches "
+      f"{pct(gemma['test']['wrapped']['classification']['cosine_1nn']['accuracy'])}, compared with "
+      f"{pct(gemma['test']['wrapped']['classification']['fusion']['accuracy'])} for its probability fusion. "
+      "The fused classifier is therefore not uniformly strongest as the representation changes.")
+    rows = [["<b>Fusion encoder</b>", "<b>α</b>", "<b>Orig. acc.</b>", "<b>Wrap. acc.</b>",
+             "<b>Wrap. cov.</b>", "<b>Wrap. risk</b>"]]
+    for name, _, metrics in comparisons:
+        original_metrics = metrics["test"]["original"]
+        wrapped_metrics = metrics["test"]["wrapped"]
+        gate_metrics = wrapped_metrics["routing"]["learned_gate"]
+        rows.append([
+            name, f"{metrics['fusion_weight']:.1f}",
+            pct(original_metrics["classification"]["fusion"]["accuracy"]),
+            pct(wrapped_metrics["classification"]["fusion"]["accuracy"]),
+            pct(gate_metrics["coverage"]), pct(gate_metrics["risk"]),
+        ])
+    table(rows, [150, 28, 76, 76, 76, 74])
+    p("Table 7. Fusion accuracy and the gate with neighbors at each encoder's independently calibrated "
+      "threshold. α is the lexical weight. The nominal calibration error target is 5%.", "caption")
+    qwen = next(item["metrics"] for item in modern if item["key"] == "qwen3")
+    p(f"Qwen's α = 0.5 lies on the shared search boundary. The full development grid favors α = 0.6 "
+      f"({pct(qwen['development_fusion_accuracy']['0.6'])}) over 0.5 "
+      f"({pct(qwen['development_fusion_accuracy']['0.5'])}). Tables 6-8 retain the common 0-0.5 "
+      "fusion protocol; the restricted search is a limitation for this configuration. These Qwen "
+      "results concern the dynamic-int8 ONNX port, rather than a full-precision checkpoint.")
+    sub("Routing ablations with the newer encoders")
+    rows = [["<b>Encoder / gate</b>", "<b>Wrapped AURC</b>",
+             "<b>Δ AURC × 1,000 (95% CI)</b>"]]
+    for item in modern:
+        metrics = item["metrics"]
+        stat = item["analysis"]["test"]["wrapped"]["aurc_delta"]
+        lo, hi = stat["ci95"]
+        for key, label in (("max_prob", "maximum probability"), ("prob_margin", "probability margin"),
+                           ("neighbors", "neighbor agreement"), ("score_only_gate", "gate without neighbors"),
+                           ("learned_gate", "gate with neighbors")):
+            interval = f"{stat['estimate'] * 1000:+.2f} [{lo * 1000:+.2f}, {hi * 1000:+.2f}]" if key == "learned_gate" else ""
+            rows.append([
+                f"{item['encoder']['name']} / {label}",
+                f"{metrics['test']['wrapped']['routing'][key]['aurc']:.5f}", interval,
+            ])
+    table(rows, [255, 85, 140])
+    p("Table 8. All five routing policies for each 2025-2026 encoder. Intervals use 10,000 test-row "
+      "bootstrap draws with each fitted classifier and threshold held fixed. Δ is the gate with "
+      "neighbors minus the gate without them.", "caption")
+    gemma_gate = gemma["test"]["wrapped"]["routing"]["learned_gate"]
+    p(f"EmbeddingGemma's gate accepts {pct(gemma_gate['coverage'])} of wrapped requests with "
+      f"{pct(gemma_gate['risk'])} error. Accepted error is "
+      f"{pct(gemma['test']['original']['routing']['learned_gate']['risk'])} on the original test and "
+      f"{pct(gemma['calibration']['learned_gate']['risk'])} on calibration. The empirical calibration "
+      "target does not guarantee 5% error on either test condition; higher coverage must be read "
+      "together with risk.")
+    p("Differences across encoders jointly reflect architecture, model size, task instruction and "
+      "ONNX quantization. The constructed test probes six polite templates on one grouped split.")
+    sub("6.6 Selection among individual and ensemble classifiers")
+    p("A separate classification follow-up combines BGE-small, BGE-base, E5-base-v2, Qwen3, "
+      "EmbeddingGemma and Jina v5 Nano. It fits a linear head per encoder and an RBF classifier "
+      "over their concatenation, with each vector block scaled by 1/√6. The RBF approximation uses "
+      "512 Nyström landmarks, γ = 2 and seed 42, followed by logistic regression with C = 30. "
+      "The candidate grid includes uniform mixtures of nonempty subsets of the seven semantic "
+      "scores, lexical weights {0, 0.1, ..., 0.5}, and the earlier baselines. Selection uses only "
+      "the 1,997-row grouped development partition. Exact ties prefer fewer nonzero score components "
+      "and then lower lexical weight. The chosen heads are refitted on all 10,003 training rows.")
+    weights_text = ", ".join(f"{name}: {weight:.3f}" for name, weight in ensemble["selected_nonzero_weights"].items())
+    if len(ensemble["selected_nonzero_weights"]) == 1:
+        p("Development selection chooses a single classifier from the candidate grid. The search "
+          "therefore supplies an individual-model comparator, despite including multi-model mixtures.")
+    p(f"The selected weights (rounded to three decimals) are {weights_text}. Official-test accuracy is "
+      f"{pct(ensemble_result['accuracy'])} ({ensemble_result['correct']:,}/3,080; Table 3). "
+      f"Relative to the original full-training fusion, the change is "
+      f"{ensemble['paired_vs_original']['delta'] * 100:+.2f} points "
+      f"(exact McNemar <i>p</i> = {ensemble['paired_vs_original']['p_value']:.3g}). "
+      f"The difference from SPACE-3's published 94.94% is "
+      f"{(ensemble_result['accuracy'] - 0.9494) * 100:+.2f} percentage points. "
+      "This experiment supplies a classification comparator; routing results above retain their "
+      "independent fit/development/calibration protocol.")
+    p(f"The preset uniform average of all six linear semantic heads obtains "
+      f"{pct(uniform_result['accuracy'])} ({uniform_result['correct']:,}/3,080), "
+      f"{(uniform_result['accuracy'] - 0.9494) * 100:+.2f} points relative to SPACE-3. "
+      f"Its development accuracy is {pct(ensemble['development_accuracy']['dense-average'])}, "
+      f"compared with {pct(ensemble['development_accuracy'][ensemble['selected_model']])} for the "
+      f"selected individual head. Against the original full-training fusion, its paired test change "
+      f"is {ensemble['paired_uniform_vs_original']['delta'] * 100:+.2f} points "
+      f"(McNemar <i>p</i> = {ensemble['paired_uniform_vs_original']['p_value']:.3g}). "
+      "This is a predefined baseline's test result. It is distinct from the development-selected "
+      "winner, and the published comparison is a single-fit point comparison with the cited studies.")
     h("7 Conclusion")
-    p(f"On our constructed BANKING77 test, the gate with neighbor agreement has the lowest AURC "
-      f"({wrapped_gate['aurc']:.5f}) of the five evaluated policies. It raises coverage by "
+    p(f"On the constructed polite-query test, the highest observed classifier accuracy is "
+      f"{pct(best_classifier['wrapped'])} from {best_classifier['name']} with {best_classifier['method']}. "
+      f"Across the 20 encoder-policy combinations, the lowest observed AURC is "
+      f"{best_routing['aurc']:.5f} from {best_routing['name']} with the {best_routing['policy']}. "
+      "These comparisons identify the best measured configurations within this constructed benchmark.")
+    p(f"On the original official test with full training, the preset six-encoder average reaches "
+      f"{pct(uniform_result['accuracy'])}, above the published full-training baselines cited here. "
+      "Development selection favors a different candidate, illustrating that its ordering can "
+      "differ from the official test ordering.")
+    p(f"In the BGE-small baseline, neighbor agreement raises coverage by "
       f"{(wrapped_gate['coverage'] - without_neighbors['coverage']) * 100:.2f} points over the "
-      f"matched gate without neighbors. Polite additions still increase the share sent to an operator "
-      f"from {pct(1 - original_gate['coverage'])} to {pct(1 - wrapped_gate['coverage'])} at the same threshold.")
+      f"matched gate without neighbors. The newer encoders' paired ablations quantify how this effect "
+      f"changes with representation. Higher classifier accuracy and lower ranking loss must still be "
+      f"distinguished from meeting a test-time error target. The empirical 5% calibration constraint "
+      f"provides no population-risk guarantee; repeated splits and real conversational inputs would "
+      f"test the stability of these single-split results.")
 
-    story.append(PageBreak())
     h("References")
     references = [
         ("Casanueva, I., Temčinas, T., Gerz, D., Henderson, M., and Vulić, I. (2020). "
@@ -476,6 +678,15 @@ def build(results, output):
         ("Bogachov, B., Letov, N., and Zhao, Y. F. (2026). The Hidden States Cookbook: A Large-Scale "
          "Ablation Study for Noise-Robust Conversational Intent Classification in Industry.",
          "https://arxiv.org/abs/2610.05394v1", "arXiv:2610.05394v1"),
+        ("Qwen Team (2025). Qwen3 Embedding: Advancing Text Embedding and Reranking Through "
+         "Foundation Models. Released June 5, 2025.",
+         "https://qwenlm.github.io/blog/qwen3-embedding/", "Official release"),
+        ("Google DeepMind (2025). Introducing EmbeddingGemma. Released September 4, 2025. "
+         "EmbeddingGemma-300M model card.",
+         "https://huggingface.co/google/embeddinggemma-300m", "Model card"),
+        ("Akram, M. K. et al. (2026). jina-embeddings-v5-text: Task-Targeted Embedding Distillation. "
+         "Classification-specific Nano checkpoint.",
+         "https://huggingface.co/jinaai/jina-embeddings-v5-text-nano-classification", "Model card"),
         ("Beijing Academy of Artificial Intelligence. BGE English embedding model cards. "
          "ONNX export by Xenova.",
          "https://huggingface.co/BAAI/bge-small-en-v1.5", "Model card"),

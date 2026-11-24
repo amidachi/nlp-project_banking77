@@ -1,0 +1,78 @@
+{
+  "seed": 42,
+  "replicates": 10000,
+  "test": {
+    "original": {
+      "rows": 3080,
+      "counts": {
+        "learned_gate": {
+          "accepted": 3072,
+          "errors": 162
+        },
+        "score_only_gate": {
+          "accepted": 3071,
+          "errors": 162
+        },
+        "prob_margin": {
+          "accepted": 3076,
+          "errors": 164
+        }
+      },
+      "margin_vs_gate_without_neighbors": {
+        "margin_only_accepted": 7,
+        "gate_only_accepted": 2,
+        "unequal_scores": 3080
+      },
+      "coverage_delta": {
+        "estimate": 0.0003246753246753247,
+        "ci95": [
+          0.0,
+          0.000974025974025974
+        ]
+      },
+      "aurc_delta": {
+        "estimate": -0.00014574568066276668,
+        "ci95": [
+          -0.0002949616870871187,
+          -3.661681776016053e-05
+        ]
+      }
+    },
+    "wrapped": {
+      "rows": 3080,
+      "counts": {
+        "learned_gate": {
+          "accepted": 3055,
+          "errors": 210
+        },
+        "score_only_gate": {
+          "accepted": 3048,
+          "errors": 206
+        },
+        "prob_margin": {
+          "accepted": 3068,
+          "errors": 224
+        }
+      },
+      "margin_vs_gate_without_neighbors": {
+        "margin_only_accepted": 27,
+        "gate_only_accepted": 7,
+        "unequal_scores": 3080
+      },
+      "coverage_delta": {
+        "estimate": 0.0022727272727272726,
+        "ci95": [
+          0.0006493506493506494,
+          0.0042207792207792205
+        ]
+      },
+      "aurc_delta": {
+        "estimate": -0.0002448891962832517,
+        "ci95": [
+          -0.000335188981407772,
+          -0.00016336624168058784
+        ]
+      }
+    }
+  }
+}

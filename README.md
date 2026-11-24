@@ -15,9 +15,10 @@ The official test has 3,080 examples. The second condition wraps the same messag
 | Majority class | 1.30% | 1.30% |
 | Word + character TF-IDF | 90.45% | 88.12% |
 | Frozen BGE-small | 93.05% | 84.64% |
+| BGE-small cosine 1-nearest-neighbor | 92.34% | 81.59% |
 | TF-IDF + BGE probability fusion | **93.57%** | 86.59% |
 
-All routing variants use the same fusion predictions. The nominal error target is 5% on the independent calibration set.
+Within each encoder experiment, all routing variants use the same fusion predictions. The nominal error target is 5% on the independent calibration set. The two tables above and below describe the BGE-small baseline.
 
 | Routing policy | Original coverage | Original accepted error | With wrappers coverage | With wrappers accepted error |
 | --- | ---: | ---: | ---: | ---: |
@@ -33,6 +34,32 @@ Cheng et al. report 89.63% coverage, 2.65% accepted error and AURC 0.01044 on th
 
 With all 10,003 official training rows, the original fusion reaches **93.60%** on the official test. The development-selected follow-up combines 10% TF-IDF with 30% each BGE-small, BGE-base, and E5-base-v2. It reaches **94.51%** (2,911 / 3,080), with 28 additional correct predictions. Published comparisons include 94.10% for [RoBERTa-base](https://aclanthology.org/2021.naacl-industry.38/) and 94.94% for [SPACE-3](https://arxiv.org/abs/2209.06664).
 
+## Comparison with 2025-2026 encoders
+
+Every row uses the same 8,006 fit, 999 development, 998 calibration and 3,080 paired test examples. Each encoder has independently fitted heads, fusion weights and gates. Models remain frozen.
+
+| Encoder | Linear original | Linear wrapped | Cosine 1-NN wrapped | Fusion wrapped |
+| --- | ---: | ---: | ---: | ---: |
+| BGE-small | 93.05% | 84.64% | 81.59% | 86.59% |
+| Qwen3-Embedding-0.6B | 88.93% | 85.36% | 82.56% | 89.35% |
+| EmbeddingGemma-300M | 94.16% | 91.88% | 93.18% | 92.56% |
+| Jina v5 Nano (classification) | 91.62% | 89.09% | 88.90% | 90.88% |
+
+| Fusion encoder / gate with neighbors | Wrapped coverage | Accepted error | Wrapped AURC |
+| --- | ---: | ---: | ---: |
+| BGE-small | 84.58% | 4.72% | 0.02006 |
+| Qwen3-Embedding-0.6B | 87.47% | 5.20% | 0.01678 |
+| EmbeddingGemma-300M | 99.19% | 6.87% | 0.01098 |
+| Jina v5 Nano (classification) | 97.60% | 7.98% | 0.01391 |
+
+The 5% constraint is empirical calibration error. It does not guarantee a 5% test error rate. Coverage must be assessed alongside accepted error. The report compares all five routing policies per encoder and includes 10,000-draw paired bootstrap intervals for the neighbor ablations.
+
+The preset uniform average of six linear semantic heads reaches **95.26%** on the full-training official test (2,934 / 3,080). It exceeds the cited SPACE-3 point score of 94.94% by 0.32 percentage points. This predefined baseline is evaluated separately from the development-selected candidate.
+
+The development-selected six-encoder classification follow-up reaches **94.29%** on the official test after refitting on all training rows (2,904 / 3,080). Its nonzero probability weights (rounded to three decimals) are: embeddinggemma=1.000.
+
+These extensions were added after the initial test evaluation. Fusion weights and ensemble components are selected on grouped development data. The report documents the independent routing and full-training classification protocols.
+
 ## Reproduce on CPU
 
 Run from the repository root with Python 3.12.
@@ -43,6 +70,13 @@ python prepare.py
 python run_experiment.py
 python routing_analysis.py
 python extended_benchmark.py
+python modern_benchmark.py --model qwen3
+python routing_analysis.py --results results/modern/qwen3
+python modern_benchmark.py --model embeddinggemma
+python routing_analysis.py --results results/modern/embeddinggemma
+python modern_benchmark.py --model jina-v5
+python routing_analysis.py --results results/modern/jina-v5
+python extended_benchmark.py --modern --threads 4
 ```
 
 `prepare.py` checks the data hashes, downloads the pinned 34 MB ONNX encoder and its tokenizer, and caches normalized embeddings in `cache/`. The files in `data/` are included, so the first run needs network access for the model only. `python prepare.py --data-only` checks just the dataset. `--threads` controls ONNX CPU threads.
@@ -51,6 +85,16 @@ python extended_benchmark.py
 
 `extended_benchmark.py` adds BGE-base and E5-base-v2 (110 MB of int8 weights each). It selects a classifier on 1,997 grouped development rows and refits the heads on the full training set for an additional official-test comparison. This follow-up was planned after the first official-test evaluation.
 
+`modern_benchmark.py` compares Qwen3-Embedding-0.6B (June 2025), EmbeddingGemma-300M (September 2025), and the classification-specific Jina v5 Nano checkpoint (February 2026). Every encoder uses the same fit/development/calibration/test rows. Each experiment compares a learned linear classifier, cosine 1-nearest-neighbor classification, lexical/semantic probability fusion, and five routing policies. Fusion weights and gates are fitted independently per encoder; test results do not select their settings. This extension was added after feedback on the initial report.
+
+The script downloads about 614 MB, 309 MB, and 247 MB of quantized weights respectively, plus tokenizers. It checks pinned revisions and SHA-256 hashes in `modern_benchmark.py`. Encoding uses CPU ONNX Runtime with four threads and resumable batch caches. `--threads` adjusts inference threads; `--encode-only` prepares embeddings without fitting classifiers. Run the encoders sequentially on a machine with limited RAM. The output includes `encoder.json` with source, revision, hashes, task prefix, pooling, token limit and truncation counts.
+
+Qwen receives an intent-classification instruction, EmbeddingGemma receives `task: classification | query: `, and Jina receives `Document: `. Qwen and Jina use the final non-padding token; EmbeddingGemma's export supplies its projected sentence embedding. All vectors are L2 normalized and inputs are capped at 128 tokens. Different architectures, dimensions, sizes, instructions and quantization mean this is a comparison of practical encoder configurations.
+
+Qwen's dynamic-int8 export uses batch size 1. A controlled probe found that the same query had cosine similarity 0.914 when encoded alone versus with unrelated queries. Single-query padding and repeated identical queries gave cosine 1.0; EmbeddingGemma and Jina also matched their single-query vectors in the mixed-batch probe. [The saved inference audit](results/modern/qwen3/inference_audit.json) records the inputs and decision. Gemma and Jina use batches of 16.
+
+`extended_benchmark.py --modern` adds the three newer encoders to the original three-encoder classification experiment. It compares the six linear heads, a Nyström RBF classifier over their concatenated representations, uniform probability mixtures of nonempty score subsets, and lexical weights from 0 to 0.5 in steps of 0.1. It selects on 1,997 grouped development rows and refits on all 10,003 training rows. Ties favor fewer nonzero score components, then lower lexical weight. This classification follow-up has its own saved results and does not alter the single-encoder routing experiments.
+
 | Path | Contents |
 | --- | --- |
 | [data/](data/) | Upstream CSVs, label names and dataset license |
@@ -58,12 +102,16 @@ python extended_benchmark.py
 | [run_experiment.py](run_experiment.py) | Models, data splits, threshold selection and evaluation |
 | [routing_analysis.py](routing_analysis.py) | Routing count audit and paired test-row bootstrap |
 | [extended_benchmark.py](extended_benchmark.py) | Follow-up with larger encoders and model selection |
+| [modern_benchmark.py](modern_benchmark.py) | Pinned 2025-2026 encoders and the same classification/routing protocol |
+| [results/modern/](results/modern/) | Per-encoder metrics, paired predictions, risk-coverage curves, manifests and bootstrap intervals |
 | [results/metrics.json](results/metrics.json) | Metrics, thresholds, confidence intervals, tests and per-intent analysis |
 | [results/predictions.csv](results/predictions.csv) | Paired predictions, scores and accept/defer decisions, indexed by zero-based test row |
 | [results/risk_coverage.csv](results/risk_coverage.csv) | Error across coverage levels for the five routing policies |
 | [results/routing_analysis.json](results/routing_analysis.json) | Accepted counts, policy overlap and confidence intervals |
 | [results/extended_benchmark.json](results/extended_benchmark.json) | Follow-up model selection and official-test comparison |
 | [results/extended_predictions.csv](results/extended_predictions.csv) | Follow-up predictions indexed by official test row |
+| [results/modern_ensemble.json](results/modern_ensemble.json) | Development selection and full-training test scores for the six-encoder comparison |
+| [results/modern_ensemble_predictions.csv](results/modern_ensemble_predictions.csv) | Development-selected candidate and baseline predictions on the official test |
 | [report.py](report.py) | Report source with tables and graph built from the saved results |
 
 To build the PDF, install `reportlab==4.4.9` and run `python report.py`. Windows Times New Roman and common Linux Liberation/DejaVu serif fonts are supported. Set `--font-dir` if using a custom font location.
@@ -72,4 +120,8 @@ To build the PDF, install `reportlab==4.4.9` and run `python report.py`. Windows
 
 The original BANKING77 files are attributed to PolyAI and distributed under [CC BY 4.0](data/LICENSE.txt). They come from the [pinned upstream revision](https://github.com/PolyAI-LDN/task-specific-datasets/tree/9d081458ff52e53cf7e848f414e6e9344e4e6696/banking_data), introduced by [Casanueva et al. (2020)](https://aclanthology.org/2020.nlp4convai-1.5/). The synthetic wording changes are generated by this project. The base intent labels come from the upstream dataset.
 
+`.gitattributes` preserves the upstream CSV and category-file bytes when cloning on Windows, so checkout line-ending conversion does not invalidate the pinned data hashes.
+
 Embeddings use [BAAI/bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5) and its [pinned Xenova ONNX port](https://huggingface.co/Xenova/bge-small-en-v1.5/tree/ea104dacec62c0de699686887e3f920caeb4f3e3), with an MIT model license. This benchmark concerns English, single-intent, in-scope queries. It measures routing labels and assumes deferred requests reach a human. Production outcomes and unfamiliar intents are outside its evaluation.
+
+The newer models are [Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) (Apache 2.0; [ONNX export](https://huggingface.co/onnx-community/Qwen3-Embedding-0.6B-ONNX)), [EmbeddingGemma-300M](https://huggingface.co/google/embeddinggemma-300m) ([Gemma terms](https://ai.google.dev/gemma/terms); [ONNX export](https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX)), and [Jina v5 Nano classification](https://huggingface.co/jinaai/jina-embeddings-v5-text-nano-classification) (CC BY-NC 4.0). Model weights are downloaded locally and are not included in this repository.
